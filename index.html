@@ -394,6 +394,22 @@
             </div>
         </div>
 
+        <!-- Confirm Modal -->
+        <div id="confirm-modal" class="absolute inset-0 z-[120] hidden flex-col justify-center items-center px-4">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity opacity-0" id="confirm-backdrop"></div>
+            <div class="bg-white p-6 rounded-3xl shadow-2xl relative z-10 w-full max-w-[320px] transform scale-95 opacity-0 transition-all duration-300" id="confirm-content">
+                <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4 mx-auto">
+                    <i class="ph-bold ph-warning text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 text-center mb-2" id="confirm-title">Are you sure?</h3>
+                <p class="text-slate-500 text-center text-sm mb-6" id="confirm-text">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button onclick="closeConfirmModal()" class="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">Cancel</button>
+                    <button id="confirm-action-btn" class="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30">Delete</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Toast Notification Container -->
         <div id="toast-container" class="absolute top-6 left-0 right-0 z-[110] flex flex-col items-center gap-2 pointer-events-none px-4"></div>
 
@@ -415,8 +431,51 @@
             activeMonth: null,
             activeWorkId: null,
             editingExpenseId: null,
-            adminActiveProjectId: null // For tracking which project is open in admin
+            adminActiveProjectId: null,
+            editingUserId: null,
+            editingProjectId: null,
+            editingAllocId: null
         };
+
+        var confirmCallback = null;
+
+        function openConfirmModal(title, text, callback) {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-text').innerText = text;
+            confirmCallback = callback;
+            
+            const modal = document.getElementById('confirm-modal');
+            const backdrop = document.getElementById('confirm-backdrop');
+            const content = document.getElementById('confirm-content');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            requestAnimationFrame(() => {
+                backdrop.classList.remove('opacity-0');
+                content.classList.remove('scale-95', 'opacity-0');
+            });
+            
+            document.getElementById('confirm-action-btn').onclick = () => {
+                closeConfirmModal();
+                if(confirmCallback) confirmCallback();
+            };
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-modal');
+            const backdrop = document.getElementById('confirm-backdrop');
+            const content = document.getElementById('confirm-content');
+            
+            backdrop.classList.add('opacity-0');
+            content.classList.add('scale-95', 'opacity-0');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                confirmCallback = null;
+            }, 300);
+        }
 
         var categoryConfig = {
             'food': { icon: 'ph-hamburger', color: 'text-orange-600', bg: 'bg-orange-100', border: 'border-orange-200' },
@@ -486,7 +545,7 @@
             try {
                 await syncOfflineQueue();
                 await fetchAllData();
-                setupRealtimeListeners();
+                // setupRealtimeListeners() completely removed to prevent WebSocket SecurityError in Canvas
             } catch (error) {
                 console.error("Initialization error:", error);
                 showToast("Failed to connect to database.", "error");
@@ -528,19 +587,6 @@
                 updateUIBasedOnRole();
             } catch (err) {
                 console.error("Fetch Data Error:", err);
-            }
-        }
-
-        function setupRealtimeListeners() {
-            try {
-                supabase.channel('public-changes')
-                    .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-                        fetchAllData();
-                    }).subscribe((status, err) => {
-                        if (err) console.warn("Realtime subscription issue:", err);
-                    });
-            } catch (error) {
-                console.warn("WebSockets restricted in this preview environment. Real-time updates disabled. Manual refresh will be used.");
             }
         }
 
@@ -685,6 +731,10 @@
                             <p class="text-[11px] text-slate-500 font-mono tracking-wider">pwd: ${u.password}</p>
                         </div>
                     </div>
+                    <div class="flex gap-1">
+                        <button onclick="editUser('${u.id}')" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition-colors"><i class="ph-bold ph-pencil-simple text-lg"></i></button>
+                        <button onclick="deleteUser('${u.id}')" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><i class="ph-bold ph-trash text-lg"></i></button>
+                    </div>
                 </div>
             `).join('');
         }
@@ -694,19 +744,52 @@
             const pw = document.getElementById('new-user-pwd').value.trim();
             if(!un || !pw) return showToast("Fill all fields", "error");
 
+            const uid = un.toLowerCase(); // Enforce case insensitivity on ID
+
             try {
-                const { error } = await supabase.from('exp_users').insert({ 
-                    id: un.toLowerCase(), username: un, password: pw, role: 'user' 
-                });
-                if (error) throw error;
-                showToast("User saved successfully");
+                if (state.editingUserId) {
+                    const { error } = await supabase.from('exp_users').update({ username: un, password: pw }).eq('id', state.editingUserId);
+                    if (error) throw error;
+                    showToast("User updated successfully");
+                    state.editingUserId = null;
+                } else {
+                    const { error } = await supabase.from('exp_users').insert({ 
+                        id: uid, username: un, password: pw, role: 'user' 
+                    });
+                    if (error) throw error;
+                    showToast("User saved successfully");
+                }
+                
                 document.getElementById('new-user-name').value = '';
                 document.getElementById('new-user-pwd').value = '';
                 await fetchAllData(); 
             } catch (e) {
                 console.error(e);
-                showToast("Error saving user. It may already exist.", "error");
+                showToast("Error saving user.", "error");
             }
+        }
+
+        window.editUser = function(id) {
+            const user = state.users.find(u => u.id === id);
+            if(!user) return;
+            state.editingUserId = id;
+            document.getElementById('new-user-name').value = user.username;
+            document.getElementById('new-user-pwd').value = user.password;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        window.deleteUser = function(id) {
+            openConfirmModal("Delete User", "Are you sure you want to delete this user? This will not delete their historical expenses.", async () => {
+                try {
+                    const { error } = await supabase.from('exp_users').delete().eq('id', id);
+                    if(error) throw error;
+                    showToast("User deleted.");
+                    await fetchAllData();
+                } catch(e) {
+                    console.error(e);
+                    showToast("Error deleting user.", "error");
+                }
+            });
         }
 
         // --- Projects Tab (New Structure) ---
@@ -724,15 +807,18 @@
                         <h4 class="text-[11px] font-bold text-brand-500 mb-2 uppercase tracking-widest pl-2">${formatMonth(month)}</h4>
                         <div class="space-y-2">
                             ${projs.map(p => `
-                                <button onclick="openProjectAllocation('${p.id}')" class="w-full bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-md transition-all active:scale-[0.98] group">
-                                    <div class="flex items-center gap-3">
+                                <div class="w-full bg-white p-2 pr-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-md transition-all group">
+                                    <button onclick="openProjectAllocation('${p.id}')" class="flex-1 flex items-center gap-3 active:scale-[0.98] p-2">
                                         <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
                                             <i class="ph-fill ph-folder-notch text-brand-400 text-lg"></i>
                                         </div>
                                         <p class="font-bold text-slate-800">${p.name}</p>
+                                    </button>
+                                    <div class="flex items-center gap-1 border-l border-slate-100 pl-2 ml-2">
+                                        <button onclick="editProject('${p.id}')" class="p-2 text-slate-400 hover:text-brand-500 hover:bg-brand-50 rounded-lg transition-colors"><i class="ph-bold ph-pencil-simple text-lg"></i></button>
+                                        <button onclick="deleteProject('${p.id}')" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><i class="ph-bold ph-trash text-lg"></i></button>
                                     </div>
-                                    <i class="ph-bold ph-caret-right text-slate-300 group-hover:text-brand-500 transition-colors"></i>
-                                </button>
+                                </div>
                             `).join('')}
                         </div>
                     </div>
@@ -743,6 +829,8 @@
 
         window.openProjectAllocation = function(projectId) {
             state.adminActiveProjectId = projectId;
+            state.editingAllocId = null;
+            document.getElementById('alloc-amount').value = '';
             document.getElementById('admin-projects-main-view').classList.add('view-hidden');
             document.getElementById('admin-project-allocation-view').classList.remove('view-hidden');
             renderAdminProjectAllocationView(projectId);
@@ -800,7 +888,13 @@
                                     ${a.settledExcess > 0 ? `<p class="text-[10px] text-emerald-600 font-medium mt-0.5">+₹${formatMoney(a.settledExcess)} settled</p>` : ''}
                                 </div>
                             </div>
-                            <span class="font-extrabold text-slate-900 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">₹${formatMoney(a.amount)}</span>
+                            <div class="flex items-center gap-3">
+                                <span class="font-extrabold text-slate-900 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">₹${formatMoney(a.amount)}</span>
+                                <div class="flex gap-1 border-l border-slate-100 pl-2">
+                                    <button onclick="editAllocation('${a.id}')" class="p-1.5 text-slate-400 hover:text-brand-500 rounded-md transition-colors"><i class="ph-bold ph-pencil-simple"></i></button>
+                                    <button onclick="deleteAllocation('${a.id}')" class="p-1.5 text-slate-400 hover:text-red-500 rounded-md transition-colors"><i class="ph-bold ph-trash"></i></button>
+                                </div>
+                            </div>
                         </div>
                     `;
                 }).join('');
@@ -813,15 +907,47 @@
             if(!month || !name) return showToast("Fill all fields", "error");
 
             try {
-                const { error } = await supabase.from('exp_projects').insert({ month, name });
-                if (error) throw error;
-                showToast("Project created");
+                if(state.editingProjectId) {
+                    const { error } = await supabase.from('exp_projects').update({ month, name }).eq('id', state.editingProjectId);
+                    if (error) throw error;
+                    showToast("Project updated");
+                    state.editingProjectId = null;
+                } else {
+                    const { error } = await supabase.from('exp_projects').insert({ month, name });
+                    if (error) throw error;
+                    showToast("Project created");
+                }
+                
                 document.getElementById('new-proj-name').value = '';
+                document.getElementById('new-proj-month').value = '';
                 await fetchAllData();
             } catch (e) {
                 console.error(e);
-                showToast("Error creating project", "error");
+                showToast("Error saving project", "error");
             }
+        }
+
+        window.editProject = function(id) {
+            const proj = state.projects.find(p => p.id === id);
+            if(!proj) return;
+            state.editingProjectId = id;
+            document.getElementById('new-proj-month').value = proj.month;
+            document.getElementById('new-proj-name').value = proj.name;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        window.deleteProject = function(id) {
+            openConfirmModal("Delete Project", "Delete this project and all associated data?", async () => {
+                try {
+                    const { error } = await supabase.from('exp_projects').delete().eq('id', id);
+                    if(error) throw error;
+                    showToast("Project deleted.");
+                    await fetchAllData();
+                } catch(e) {
+                    console.error(e);
+                    showToast("Error deleting project.", "error");
+                }
+            });
         }
 
         window.allocateFunds = async function() {
@@ -838,21 +964,26 @@
                 guestName = userVal.split('|')[1];
             }
 
-            const existing = state.allocations.find(a => 
-                a.projectId === projectId && 
-                a.userId === userId && 
-                (userId !== 'guest_user' || a.guestName === guestName)
-            );
-
             try {
-                if (existing) {
-                    const { error } = await supabase.from('exp_allocations').update({ amount: existing.amount + amount }).eq('id', existing.id);
+                if (state.editingAllocId) {
+                    // Update exact allocation
+                    const { error } = await supabase.from('exp_allocations').update({ 
+                        user_id: userId, amount: amount, guest_name: guestName || null 
+                    }).eq('id', state.editingAllocId);
                     if (error) throw error;
+                    state.editingAllocId = null;
                 } else {
-                    const data = { user_id: userId, project_id: projectId, amount, settled_excess: 0 };
-                    if (guestName) data.guest_name = guestName;
-                    const { error } = await supabase.from('exp_allocations').insert(data);
-                    if (error) throw error;
+                    // Create or Add to existing
+                    const existing = state.allocations.find(a => a.projectId === projectId && a.userId === userId && (userId !== 'guest_user' || a.guestName === guestName));
+                    if (existing) {
+                        const { error } = await supabase.from('exp_allocations').update({ amount: existing.amount + amount }).eq('id', existing.id);
+                        if (error) throw error;
+                    } else {
+                        const data = { user_id: userId, project_id: projectId, amount, settled_excess: 0 };
+                        if (guestName) data.guest_name = guestName;
+                        const { error } = await supabase.from('exp_allocations').insert(data);
+                        if (error) throw error;
+                    }
                 }
                 showToast("Funds allocated");
                 document.getElementById('alloc-amount').value = '';
@@ -861,6 +992,31 @@
                 console.error(e);
                 showToast("Error allocating funds", "error");
             }
+        }
+
+        window.editAllocation = function(id) {
+            const alloc = state.allocations.find(a => a.id === id);
+            if(!alloc) return;
+            state.editingAllocId = id;
+            
+            const userVal = alloc.userId === 'guest_user' ? `guest|${alloc.guestName}` : alloc.userId;
+            document.getElementById('alloc-user').value = userVal;
+            document.getElementById('alloc-amount').value = alloc.amount;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        window.deleteAllocation = function(id) {
+            openConfirmModal("Remove Allocation", "Are you sure you want to remove this budget allocation?", async () => {
+                try {
+                    const { error } = await supabase.from('exp_allocations').delete().eq('id', id);
+                    if(error) throw error;
+                    showToast("Allocation removed.");
+                    await fetchAllData();
+                } catch(e) {
+                    console.error(e);
+                    showToast("Error removing allocation.", "error");
+                }
+            });
         }
 
         function renderAdminOverview() {
@@ -1176,7 +1332,7 @@
                     const userMeta = uniqueUsersMap[key];
 
                     return `
-                    <div class="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden pl-4">
+                    <div class="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden pl-4 group">
                         <div class="absolute left-0 top-0 bottom-0 w-1 ${userMeta.colorClass.split(' ')[0]}"></div>
                         <div class="flex items-center gap-3">
                             <div class="w-10 h-10 rounded-xl flex items-center justify-center ${config.color} ${config.bg} ${config.border} border shadow-sm">
@@ -1190,7 +1346,13 @@
                                 </div>
                             </div>
                         </div>
-                        <span class="font-extrabold text-slate-900 text-[15px]">₹${formatMoney(e.amount)}</span>
+                        <div class="flex items-center gap-3">
+                            <span class="font-extrabold text-slate-900 text-[15px]">₹${formatMoney(e.amount)}</span>
+                            <div class="hidden group-hover:flex items-center gap-1 border-l border-slate-100 pl-2">
+                                <button onclick="editExpense('${e.id}')" class="p-1 text-slate-400 hover:text-brand-500"><i class="ph-bold ph-pencil-simple text-sm"></i></button>
+                                <button onclick="deleteExpense('${e.id}')" class="p-1 text-slate-400 hover:text-red-500"><i class="ph-bold ph-trash text-sm"></i></button>
+                            </div>
+                        </div>
                     </div>
                     `;
                 }).join('');
@@ -1383,6 +1545,7 @@
             const categoryInput = document.querySelector(`input[name="category"][value="${exp.category}"]`);
             if(categoryInput) categoryInput.checked = true;
             
+            // If admin is editing, we show guest field if it belongs to a guest
             if (exp.userId === 'guest_user') {
                 document.getElementById('guest-name-container').classList.remove('view-hidden');
                 document.getElementById('expense-guest-name').required = true;
@@ -1396,6 +1559,25 @@
             document.getElementById('submit-btn-text').innerText = 'Update Expense';
             
             openExpenseModalUI();
+        }
+
+        window.deleteExpense = function(id) {
+            openConfirmModal("Delete Expense", "Are you sure you want to permanently delete this expense?", async () => {
+                try {
+                    const { error } = await supabase.from('exp_expenses').delete().eq('id', id);
+                    if(error) throw error;
+                    
+                    // Optimistic delete
+                    state.expenses = state.expenses.filter(e => e.id !== id);
+                    updateUIBasedOnRole();
+                    showToast("Expense deleted.");
+                    
+                    await fetchAllData(); // background sync
+                } catch(e) {
+                    console.error(e);
+                    showToast("Error deleting expense.", "error");
+                }
+            });
         }
 
         function openExpenseModalUI() {
