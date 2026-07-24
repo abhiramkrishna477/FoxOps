@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Production Expense Tracker</title>
+    
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 
+                            400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 
+                            800: '#115e59', 900: '#134e4a',
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 8px 30px rgb(0, 0, 0, 0.04)',
+                        'float': '0 10px 40px rgb(0, 0, 0, 0.08)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Utility Classes */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .view-hidden { display: none !important; }
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .modal-enter { transform: translateY(100%); opacity: 0; }
+        .modal-enter-active { transform: translateY(0); opacity: 1; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .modal-exit { transform: translateY(100%); opacity: 0; transition: all 0.3s ease-in; }
+
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        .glass-dark { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    </style>
+</head>
+
+<!-- Body Wrapper to force mobile layout on PC -->
+<body class="bg-slate-200 h-screen w-screen flex flex-col items-center justify-center sm:p-4 font-sans antialiased text-slate-900 selection:bg-brand-400 selection:text-white">
+
+    <!-- Mobile Device Frame -->
+    <div id="app-container" class="w-full h-full max-w-[420px] bg-slate-50 relative overflow-hidden flex flex-col shadow-2xl sm:rounded-[40px] sm:h-[90vh] sm:border-[8px] sm:border-slate-800 ring-1 ring-slate-900/5">
+
+        <div id="login-screen" class="absolute inset-0 bg-slate-950 z-50 flex flex-col justify-center items-center px-6 fade-in text-white overflow-hidden">
+            <!-- Background accents -->
+            <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-brand-600 rounded-full blur-[120px] opacity-20"></div>
+            <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-600 rounded-full blur-[120px] opacity-20"></div>
+
+            <div class="z-10 w-full flex flex-col items-center">
+                <div class="w-20 h-20 bg-gradient-to-br from-brand-400 to-brand-600 rounded-[28px] flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(20,184,166,0.4)] border border-brand-300/30">
+                    <i class="ph-fill ph-film-strip text-4xl text-white"></i>
+                </div>
+                <h1 class="text-3xl font-extrabold mb-2 text-center tracking-tight">ProductionApp</h1>
+                <p class="text-slate-400 mb-10 text-center text-sm font-medium">Manage expenses seamlessly on set.</p>
+                
+                <form onsubmit="handleLogin(event)" class="w-full">
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-slate-300 mb-2 ml-1">Username</label>
+                        <input type="text" id="login-username" required
+                            class="w-full bg-slate-900/50 border border-slate-700 rounded-2xl py-4 px-5 text-lg font-medium text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/50 transition-all placeholder-slate-600"
+                            placeholder="e.g. admin">
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-semibold text-slate-300 mb-2 ml-1">Password</label>
+                        <input type="password" id="login-password" required
+                            class="w-full bg-slate-900/50 border border-slate-700 rounded-2xl py-4 px-5 text-lg font-medium text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/50 transition-all placeholder-slate-600"
+                            placeholder="••••••••">
+                    </div>
+                    <button type="submit" id="login-btn" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold text-lg hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-500/30">
+                        Sign In <i class="ph-bold ph-sign-in"></i>
+                    </button>
+                    
+                    <div class="relative mt-8 mb-6">
+                        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-800"></div></div>
+                        <div class="relative flex justify-center text-sm"><span class="px-4 bg-slate-950 text-slate-500 font-semibold">OR</span></div>
+                    </div>
+
+                    <button type="button" onclick="loginAsGuest()" class="w-full bg-slate-800/80 text-white border border-slate-700 rounded-2xl py-4 font-bold text-lg hover:bg-slate-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                        Continue as Guest <i class="ph-bold ph-user-circle"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="admin-screen" class="flex-col h-full w-full view-hidden fade-in relative bg-slate-50">
+            <header class="glass px-6 py-4 flex justify-between items-center shadow-sm z-10 sticky top-0 border-b border-slate-200/50">
+                <div>
+                    <p class="text-[10px] font-bold text-brand-500 uppercase tracking-wider mb-0.5">Admin Portal</p>
+                    <h1 class="text-xl font-extrabold text-slate-800 flex items-center gap-2 tracking-tight">Control Panel</h1>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="refreshData(this)" class="p-2.5 rounded-full bg-white shadow-soft text-slate-600 hover:text-brand-600 transition-colors border border-slate-100">
+                        <i class="ph-bold ph-arrows-clockwise text-lg"></i>
+                    </button>
+                    <button onclick="logout()" class="p-2.5 rounded-full bg-white shadow-soft text-slate-600 hover:text-red-600 transition-colors border border-slate-100">
+                        <i class="ph-bold ph-sign-out text-lg"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-y-auto pb-24 px-4 pt-6" id="admin-content">
+                <!-- Segmented Control Tabs -->
+                <div class="flex p-1.5 mb-8 bg-slate-200/60 rounded-[20px] overflow-x-auto no-scrollbar shadow-inner">
+                    <button onclick="switchAdminTab('overview')" id="tab-btn-overview" class="flex-1 py-2.5 px-3 rounded-2xl text-xs font-bold bg-white text-slate-900 shadow-sm transition-all whitespace-nowrap">Balances</button>
+                    <button onclick="switchAdminTab('expenses')" id="tab-btn-expenses" class="flex-1 py-2.5 px-3 rounded-2xl text-xs font-bold text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap">Expenses</button>
+                    <button onclick="switchAdminTab('projects')" id="tab-btn-projects" class="flex-1 py-2.5 px-3 rounded-2xl text-xs font-bold text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap">Projects</button>
+                    <button onclick="switchAdminTab('users')" id="tab-btn-users" class="flex-1 py-2.5 px-3 rounded-2xl text-xs font-bold text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap">Users</button>
+                </div>
+
+                <!-- Tab: Overview & Balances -->
+                <div id="admin-tab-overview" class="space-y-8">
+                    <div>
+                        <h3 class="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2 px-1"><i class="ph-fill ph-scales text-brand-500"></i> Account Balances</h3>
+                        <div id="admin-balances-list" class="space-y-4"></div>
+                    </div>
+                </div>
+
+                <!-- Tab: Expenses -->
+                <div id="admin-tab-expenses" class="view-hidden space-y-6">
+                    <div id="admin-expenses-view-selector" class="mb-4">
+                        <h3 class="font-bold text-lg mb-4 text-slate-800 px-1">All Projects</h3>
+                        <div id="admin-all-projects-list" class="space-y-4"></div>
+                    </div>
+
+                    <div id="admin-expenses-detail-view" class="view-hidden space-y-6">
+                        <div class="flex items-center gap-3 mb-2">
+                            <button onclick="backToAllProjectsExpenses()" class="p-2 rounded-full bg-white shadow-sm border border-slate-100 text-slate-600 hover:text-brand-600">
+                                <i class="ph-bold ph-arrow-left"></i>
+                            </button>
+                            <h3 class="font-bold text-lg text-slate-800" id="expense-detail-project-name">Project Name</h3>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-3xl shadow-soft border border-slate-100">
+                             <div class="flex justify-between items-center mb-4">
+                                <h4 class="font-bold text-slate-700">Filters & Sorting</h4>
+                            </div>
+                            <div class="space-y-3">
+                                <select id="admin-expense-filter-person" onchange="renderAdminProjectExpensesDetail()" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                    <option value="all">Filter: All Persons</option>
+                                </select>
+                                <select id="admin-expense-sort" onchange="renderAdminProjectExpensesDetail()" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                    <option value="recent">Sort: Most Recent</option>
+                                    <option value="oldest">Sort: Oldest First</option>
+                                    <option value="amount_high">Sort: Amount (High to Low)</option>
+                                    <option value="amount_low">Sort: Amount (Low to High)</option>
+                                    <option value="user">Group by User</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="admin-project-total-card" class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-float relative overflow-hidden">
+                            <div class="absolute -right-6 -top-6 w-24 h-24 bg-brand-500 rounded-full blur-2xl opacity-30"></div>
+                            <p class="text-slate-400 text-sm font-medium mb-1 relative z-10">Filtered Total</p>
+                            <h2 class="text-3xl font-bold flex items-baseline gap-1 relative z-10">
+                                <span class="text-xl text-slate-500">₹</span>
+                                <span id="admin-project-total-amount">0</span>
+                            </h2>
+                        </div>
+
+                        <div id="admin-project-expenses-list" class="space-y-4"></div>
+                    </div>
+                </div>
+
+                <!-- Tab: Projects -->
+                <div id="admin-tab-projects" class="view-hidden space-y-6">
+                    <div id="admin-projects-main-view">
+                        <div class="bg-white p-6 rounded-3xl shadow-soft border border-slate-100 mb-6">
+                            <h3 class="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2"><i class="ph-fill ph-folder-plus text-brand-500"></i> Create Work</h3>
+                            <div class="space-y-3">
+                                <input type="month" id="new-proj-month" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                <input type="text" id="new-proj-name" placeholder="Project Name" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                <button onclick="saveProject()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all shadow-md">Add Project</button>
+                            </div>
+                        </div>
+                        <h3 class="font-bold text-lg mb-4 text-slate-800 px-1">Manage Allocations</h3>
+                        <div id="admin-projects-manage-list" class="space-y-6"></div>
+                    </div>
+
+                    <!-- Project Detail View for Allocation -->
+                    <div id="admin-project-allocation-view" class="view-hidden space-y-6">
+                        <div class="flex items-center gap-3 mb-2">
+                            <button onclick="backToProjectsMain()" class="p-2 rounded-full bg-white shadow-sm border border-slate-100 text-slate-600 hover:text-brand-600">
+                                <i class="ph-bold ph-arrow-left"></i>
+                            </button>
+                            <h3 class="font-bold text-lg text-slate-800" id="allocation-project-name">Project Name</h3>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-3xl shadow-soft border border-slate-100">
+                            <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><i class="ph-fill ph-wallet text-brand-500 text-xl"></i> Allocate Funds</h3>
+                            <div class="space-y-4">
+                                <input type="hidden" id="alloc-project-id">
+                                <select id="alloc-user" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all"></select>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                                    <input type="number" id="alloc-amount" placeholder="Amount" class="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-9 pr-4 text-sm font-bold focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                </div>
+                                <button onclick="allocateFunds()" class="w-full bg-slate-900 text-white rounded-2xl py-4 font-bold hover:bg-slate-800 active:scale-[0.98] transition-all shadow-md">Assign Budget</button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-bold text-slate-700 mb-3 px-1">Current Allocations</h4>
+                            <div id="project-current-allocations" class="space-y-3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Users -->
+                <div id="admin-tab-users" class="view-hidden space-y-6">
+                    <div class="bg-white p-6 rounded-3xl shadow-soft border border-slate-100">
+                        <h3 class="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2"><i class="ph-fill ph-user-plus text-brand-500"></i> Add User</h3>
+                        <div class="space-y-3">
+                            <input type="text" id="new-user-name" placeholder="Username" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                            <input type="text" id="new-user-pwd" placeholder="Password" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                            <button onclick="saveUser()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all shadow-md">Save User</button>
+                        </div>
+                    </div>
+                    <div id="admin-users-list" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="user-screen" class="flex-col w-full h-full view-hidden fade-in relative">
+            <header class="glass px-5 py-4 flex justify-between items-center shadow-sm z-10 sticky top-0 border-b border-slate-200/50">
+                <div>
+                    <p class="text-[10px] font-bold text-brand-500 uppercase tracking-widest mb-0.5" id="user-header-subtitle">Welcome</p>
+                    <h1 class="text-xl font-extrabold text-slate-800 flex items-center gap-2 tracking-tight" id="user-header-title">Select Month</h1>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="h-10 w-10 rounded-full bg-gradient-to-br from-brand-100 to-brand-200 border-2 border-brand-400 flex items-center justify-center text-brand-700 font-bold shadow-sm text-sm" id="user-avatar">--</div>
+                    <button onclick="refreshData(this)" class="p-2.5 rounded-full bg-white border border-slate-100 shadow-soft text-slate-500 hover:text-brand-600 transition-colors ml-1">
+                        <i class="ph-bold ph-arrows-clockwise text-lg"></i>
+                    </button>
+                    <button onclick="logout()" class="p-2.5 rounded-full bg-white border border-slate-100 shadow-soft text-slate-500 hover:text-red-600 transition-colors">
+                        <i class="ph-bold ph-sign-out text-lg"></i>
+                    </button>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-y-auto no-scrollbar pb-28 px-4 pt-6 relative" id="user-main-content">
+                
+                <!-- Level 1: Choose Month -->
+                <div id="user-view-months" class="space-y-4"></div>
+
+                <!-- Level 2: Choose Work -->
+                <div id="user-view-works" class="view-hidden space-y-4">
+                    <button onclick="navToMonths()" class="mb-2 inline-flex text-sm font-bold text-slate-500 items-center gap-1 hover:text-slate-800 bg-white py-2.5 px-4 rounded-xl shadow-soft border border-slate-100 transition-all">
+                        <i class="ph-bold ph-arrow-left"></i> Back
+                    </button>
+                    <div id="works-list-container" class="space-y-3"></div>
+                </div>
+
+                <!-- Level 3: Tracker -->
+                <div id="user-view-tracker" class="view-hidden">
+                    <button onclick="navToWorks()" class="mb-4 inline-flex text-sm font-bold text-slate-500 items-center gap-1 hover:text-slate-800 bg-white py-2.5 px-4 rounded-xl shadow-soft border border-slate-100 transition-all">
+                        <i class="ph-bold ph-arrow-left"></i> Back
+                    </button>
+
+                    <section class="mb-6" id="allocation-banner-section">
+                        <div class="bg-slate-950 rounded-[32px] p-6 text-white shadow-float relative overflow-hidden border border-slate-800">
+                            <div class="absolute -right-10 -top-10 w-40 h-40 bg-brand-500 rounded-full blur-[50px] opacity-20"></div>
+                            <div class="absolute -left-10 -bottom-10 w-40 h-40 bg-blue-500 rounded-full blur-[50px] opacity-10"></div>
+                            
+                            <div class="relative z-10">
+                                <p class="text-slate-400 text-sm font-medium mb-1" id="tracker-spent-label">Total Spent</p>
+                                <h2 class="text-4xl font-extrabold mb-6 flex items-baseline gap-1 tracking-tight">
+                                    <span class="text-2xl text-slate-500 font-bold">₹</span>
+                                    <span id="tracker-spent">0</span>
+                                </h2>
+                                
+                                <div class="flex gap-3" id="tracker-balance-container">
+                                    <div class="bg-slate-900/80 rounded-2xl p-3.5 flex-1 border border-slate-800/80 backdrop-blur-md">
+                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><i class="ph-bold ph-wallet"></i> Allocated</p>
+                                        <p class="font-bold text-base" id="tracker-allocated">₹0</p>
+                                    </div>
+                                    <div class="bg-brand-900/40 rounded-2xl p-3.5 flex-1 border border-brand-500/30 backdrop-blur-md transition-colors duration-300" id="tracker-balance-card">
+                                        <p class="text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-1 flex items-center gap-1" id="tracker-balance-label"><i class="ph-bold ph-chart-line-up"></i> Balance</p>
+                                        <p class="font-bold text-base text-brand-50" id="tracker-balance">₹0</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="mb-8">
+                        <button onclick="openAddExpenseModal()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] text-white py-4 px-4 rounded-2xl font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-[0_10px_30px_rgba(20,184,166,0.3)] border border-brand-400/20">
+                            <i class="ph-bold ph-plus-circle text-xl"></i> Add Expense
+                        </button>
+                    </div>
+
+                    <section>
+                        <div class="flex justify-between items-end mb-4 px-2">
+                            <h3 class="text-lg font-extrabold text-slate-800 tracking-tight" id="expenses-list-title">My Expenses</h3>
+                            <span class="text-[11px] font-bold text-brand-700 bg-brand-100/80 px-2.5 py-1 rounded-lg border border-brand-200" id="tracker-count">0 items</span>
+                        </div>
+                        
+                        <div class="bg-white rounded-[32px] p-2 shadow-soft border border-slate-100" id="tracker-expenses-list">
+                            <!-- Expenses injected here -->
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+
+        <div id="expense-modal" class="absolute inset-0 z-[100] hidden flex-col justify-end overflow-hidden">
+            <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-md transition-opacity opacity-0" id="modal-backdrop" onclick="closeExpenseModal()"></div>
+            <div class="relative w-full bg-white rounded-t-[40px] shadow-2xl modal-enter z-10 max-h-[92vh] flex flex-col border-t border-slate-200" id="modal-content">
+                <div class="p-6 pb-8 flex-1 overflow-y-auto no-scrollbar">
+                    <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight" id="modal-title">Record Expense</h3>
+                        <button type="button" onclick="closeExpenseModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><i class="ph-bold ph-x"></i></button>
+                    </div>
+                    
+                    <form id="expense-form" onsubmit="handleExpenseSubmit(event)">
+                        
+                        <div class="mb-5 view-hidden" id="guest-name-container">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Your Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="expense-guest-name"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-4 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-white transition-all"
+                                placeholder="e.g. John Doe">
+                        </div>
+
+                        <div class="mb-5">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Amount (₹)</label>
+                            <div class="relative">
+                                <span class="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-400">₹</span>
+                                <input type="number" id="expense-amount" required min="1" step="any"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-[24px] py-5 pl-14 pr-5 text-3xl font-extrabold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-white transition-all placeholder-slate-300"
+                                    placeholder="0">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-5">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Description</label>
+                            <input type="text" id="expense-desc" required
+                                class="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-4 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-white transition-all"
+                                placeholder="e.g. Transport fare">
+                        </div>
+                        
+                        <div class="mb-8">
+                            <label class="block text-sm font-bold text-slate-700 mb-3">Category</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="food" class="peer hidden" checked>
+                                    <div class="px-3 py-3.5 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-orange-50 peer-checked:text-orange-600 peer-checked:border-orange-200 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-sm peer-checked:shadow-[0_4px_20px_rgba(249,115,22,0.15)]">
+                                        <i class="ph-fill ph-hamburger text-lg"></i> Food
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="transport" class="peer hidden">
+                                    <div class="px-3 py-3.5 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-blue-50 peer-checked:text-blue-600 peer-checked:border-blue-200 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-sm peer-checked:shadow-[0_4px_20px_rgba(59,130,246,0.15)]">
+                                        <i class="ph-fill ph-car text-lg"></i> Travel
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="equipment" class="peer hidden">
+                                    <div class="px-3 py-3.5 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-purple-50 peer-checked:text-purple-600 peer-checked:border-purple-200 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-sm peer-checked:shadow-[0_4px_20px_rgba(168,85,247,0.15)]">
+                                        <i class="ph-fill ph-camera text-lg"></i> Equip
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="other" class="peer hidden">
+                                    <div class="px-3 py-3.5 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-sm peer-checked:shadow-[0_4px_20px_rgba(15,23,42,0.2)]">
+                                        <i class="ph-fill ph-dots-three text-lg"></i> Other
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" id="submit-btn" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold text-lg hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(20,184,166,0.3)]">
+                            <span id="submit-btn-text">Save Expense</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notification Container -->
+        <div id="toast-container" class="absolute top-6 left-0 right-0 z-[110] flex flex-col items-center gap-2 pointer-events-none px-4"></div>
+
+    </div> <!-- End App Container -->
+
+    <script>
+        // Supabase Credentials
+        var supabaseUrl = 'https://iomalrindmmboiajivoh.supabase.co';
+        var supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvbWFscmluZG1tYm9pYWppdm9oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNTUyNDIsImV4cCI6MjA5ODYzMTI0Mn0.c3-gsJH_J4LT3m1bs5Jr9MJj0ciO-mtne3V10d5XY8E';
+        var supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        var state = {
+            users: [],
+            projects: [],
+            allocations: [],
+            expenses: [],
+            currentUser: null,
+            isGuest: false,
+            activeMonth: null,
+            activeWorkId: null,
+            editingExpenseId: null,
+            adminActiveProjectId: null // For tracking which project is open in admin
+        };
+
+        var categoryConfig = {
+            'food': { icon: 'ph-hamburger', color: 'text-orange-600', bg: 'bg-orange-100', border: 'border-orange-200' },
+            'transport': { icon: 'ph-car', color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' },
+            'equipment': { icon: 'ph-camera', color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' },
+            'other': { icon: 'ph-receipt', color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-200' }
+        };
+
+        // User color palette for expense tracking
+        const userColors = [
+            'bg-blue-50 text-blue-700 border-blue-200',
+            'bg-emerald-50 text-emerald-700 border-emerald-200',
+            'bg-purple-50 text-purple-700 border-purple-200',
+            'bg-amber-50 text-amber-700 border-amber-200',
+            'bg-rose-50 text-rose-700 border-rose-200',
+            'bg-cyan-50 text-cyan-700 border-cyan-200',
+            'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200'
+        ];
+        
+        function getUserColorClass(index) {
+            return userColors[index % userColors.length];
+        }
+
+        // --- OFFLINE SYNC LOGIC ---
+        function saveToOfflineQueue(action, table, data, id = null) {
+            let queue = JSON.parse(localStorage.getItem('exp_offline_queue') || '[]');
+            queue.push({ action, table, data, id, timestamp: Date.now() });
+            localStorage.setItem('exp_offline_queue', JSON.stringify(queue));
+        }
+
+        async function syncOfflineQueue() {
+            let queue = JSON.parse(localStorage.getItem('exp_offline_queue') || '[]');
+            if (queue.length === 0) return;
+
+            showToast("Syncing offline data...", "info");
+            let remainingQueue = [];
+            let syncedCount = 0;
+
+            for (let item of queue) {
+                try {
+                    if (item.action === 'insert') {
+                        const { error } = await supabase.from(item.table).insert(item.data);
+                        if (error) throw error;
+                        syncedCount++;
+                    } else if (item.action === 'update') {
+                        const { error } = await supabase.from(item.table).update(item.data).eq('id', item.id);
+                        if (error) throw error;
+                        syncedCount++;
+                    }
+                } catch (e) {
+                    console.error("Failed to sync item", e);
+                    remainingQueue.push(item); // Keep in queue for next try
+                }
+            }
+
+            localStorage.setItem('exp_offline_queue', JSON.stringify(remainingQueue));
+            
+            if (syncedCount > 0) {
+                showToast(`Synced ${syncedCount} offline entries!`);
+                await fetchAllData(); // Force refresh to map real DB IDs
+            }
+        }
+
+        window.addEventListener('online', syncOfflineQueue);
+
+        async function initApp() {
+            try {
+                await syncOfflineQueue();
+                await fetchAllData();
+                setupRealtimeListeners();
+            } catch (error) {
+                console.error("Initialization error:", error);
+                showToast("Failed to connect to database.", "error");
+            }
+        }
+
+        async function fetchAllData() {
+            try {
+                const [u, p, a, e] = await Promise.all([
+                    supabase.from('exp_users').select('*'),
+                    supabase.from('exp_projects').select('*'),
+                    supabase.from('exp_allocations').select('*'),
+                    supabase.from('exp_expenses').select('*')
+                ]);
+
+                if (u.error) {
+                    console.error("DB Error:", u.error);
+                    if (u.error.code === '42P01') showToast("Error: Database tables not created yet!", "error");
+                    else showToast("DB Error: " + u.error.message, "error");
+                    return; 
+                }
+                
+                state.users = u.data || [];
+                state.projects = (p.data || []).map(row => ({...row}));
+                state.projects.sort((a,b) => b.month.localeCompare(a.month)); 
+                
+                state.allocations = (a.data || []).map(row => ({
+                    id: row.id, projectId: row.project_id, userId: row.user_id,
+                    amount: row.amount, settledExcess: row.settled_excess, guestName: row.guest_name
+                }));
+                
+                state.expenses = (e.data || []).map(row => ({
+                    id: row.id, projectId: row.project_id, userId: row.user_id,
+                    amount: row.amount, desc: row.description, category: row.category,
+                    guestName: row.guest_name, timestamp: new Date(row.created_at).getTime()
+                })).sort((x, y) => y.timestamp - x.timestamp);
+
+                await checkAdminSeed();
+                updateUIBasedOnRole();
+            } catch (err) {
+                console.error("Fetch Data Error:", err);
+            }
+        }
+
+        function setupRealtimeListeners() {
+            supabase.channel('public-changes')
+                .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+                    fetchAllData();
+                }).subscribe();
+        }
+
+        async function checkAdminSeed() {
+            if (state.users.length === 0) {
+                const { error } = await supabase.from('exp_users').insert({
+                    id: 'admin', username: 'admin', password: '123', role: 'admin'
+                });
+                if (!error) await fetchAllData();
+            } else {
+                const adminUser = state.users.find(u => u.username === 'admin');
+                if (adminUser && adminUser.password !== '123') {
+                    await supabase.from('exp_users').update({ password: '123' }).eq('id', adminUser.id);
+                    adminUser.password = '123'; 
+                }
+            }
+        }
+
+        window.handleLogin = async function(e) {
+            e.preventDefault();
+            const un = document.getElementById('login-username').value.trim();
+            const pw = document.getElementById('login-password').value.trim();
+            if(!un || !pw) return;
+
+            const btn = document.getElementById('login-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="ph-bold ph-spinner animate-spin"></i>`; 
+
+            await new Promise(r => setTimeout(r, 400));
+
+            const user = state.users.find(u => u.username.toLowerCase() === un.toLowerCase() && u.password === pw);
+            
+            if (user) {
+                state.currentUser = user;
+                state.isGuest = false;
+                document.getElementById('login-screen').classList.add('hidden');
+                
+                if (user.role === 'admin') {
+                    document.getElementById('admin-screen').classList.remove('view-hidden');
+                    switchAdminTab('overview');
+                } else {
+                    document.getElementById('user-screen').classList.remove('view-hidden');
+                    document.getElementById('user-avatar').innerText = user.username.substring(0,2).toUpperCase();
+                    renderUserMonths();
+                }
+                updateUIBasedOnRole();
+                document.getElementById('login-username').value = '';
+                document.getElementById('login-password').value = '';
+            } else {
+                showToast("Invalid username or password", "error");
+            }
+            
+            btn.innerHTML = originalText;
+        }
+
+        window.loginAsGuest = function() {
+            state.isGuest = true;
+            state.currentUser = { id: 'guest_user', username: 'Guest', role: 'guest' };
+            document.getElementById('login-screen').classList.add('hidden');
+            
+            document.getElementById('user-screen').classList.remove('view-hidden');
+            document.getElementById('user-avatar').innerHTML = '<i class="ph-bold ph-user"></i>';
+            renderUserMonths();
+        }
+
+        window.logout = function() {
+            state.currentUser = null;
+            state.isGuest = false;
+            state.activeMonth = null;
+            state.activeWorkId = null;
+            
+            document.getElementById('admin-screen').classList.add('view-hidden');
+            document.getElementById('user-screen').classList.add('view-hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            
+            document.getElementById('user-view-months').classList.remove('view-hidden');
+            document.getElementById('user-view-works').classList.add('view-hidden');
+            document.getElementById('user-view-tracker').classList.add('view-hidden');
+        }
+
+        window.switchAdminTab = function(tab) {
+            ['overview', 'expenses', 'users', 'projects'].forEach(t => {
+                document.getElementById(`admin-tab-${t}`).classList.add('view-hidden');
+                const btn = document.getElementById(`tab-btn-${t}`);
+                btn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm');
+                btn.classList.add('text-slate-500');
+            });
+
+            document.getElementById(`admin-tab-${tab}`).classList.remove('view-hidden');
+            const activeBtn = document.getElementById(`tab-btn-${tab}`);
+            activeBtn.classList.remove('text-slate-500');
+            activeBtn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+
+            if(tab === 'overview') renderAdminOverview();
+            if(tab === 'expenses') renderAdminAllProjectsList();
+            if(tab === 'projects') renderAdminProjectsManageList();
+            if(tab === 'users') renderAdminUsersList();
+        }
+
+        function updateUIBasedOnRole() {
+            if (!state.currentUser) return;
+            if (state.currentUser.role === 'admin') {
+                if(!document.getElementById('admin-tab-users').classList.contains('view-hidden')) renderAdminUsersList();
+                if(!document.getElementById('admin-tab-projects').classList.contains('view-hidden')) {
+                    if(state.adminActiveProjectId) renderAdminProjectAllocationView(state.adminActiveProjectId);
+                    else renderAdminProjectsManageList();
+                }
+                if(!document.getElementById('admin-tab-overview').classList.contains('view-hidden')) renderAdminOverview();
+                if(!document.getElementById('admin-tab-expenses').classList.contains('view-hidden')) {
+                     if(state.adminActiveProjectId) renderAdminProjectExpensesDetail();
+                     else renderAdminAllProjectsList();
+                }
+            } else {
+                if (state.activeWorkId) renderUserTracker();
+                else if (state.activeMonth) renderUserWorks(state.activeMonth);
+                else renderUserMonths();
+            }
+        }
+
+        function formatMoney(amount) { return parseFloat(amount).toLocaleString('en-IN'); }
+        function formatMonth(monthStr) {
+            if(!monthStr) return '';
+            const d = new Date(monthStr + '-01');
+            return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        }
+        function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase(); }
+
+        // --- Users Tab ---
+        function renderAdminUsersList() {
+            const container = document.getElementById('admin-users-list');
+            const users = state.users.filter(u => u.role !== 'admin');
+            if(users.length === 0) return container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-sm"><i class="ph-fill ph-users text-4xl text-slate-300 mb-2"></i><p class="text-slate-500 font-medium text-sm">No users found.</p></div>`;
+            
+            container.innerHTML = users.map(u => `
+                <div class="bg-white p-4 rounded-2xl flex justify-between items-center shadow-sm border border-slate-100 hover:shadow-md transition-all">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center font-bold text-sm">
+                            ${u.username.substring(0,2).toUpperCase()}
+                        </div>
+                        <div>
+                            <p class="font-bold text-slate-800">${u.username}</p>
+                            <p class="text-[11px] text-slate-500 font-mono tracking-wider">pwd: ${u.password}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        window.saveUser = async function() {
+            const un = document.getElementById('new-user-name').value.trim();
+            const pw = document.getElementById('new-user-pwd').value.trim();
+            if(!un || !pw) return showToast("Fill all fields", "error");
+
+            try {
+                const { error } = await supabase.from('exp_users').insert({ 
+                    id: un.toLowerCase(), username: un, password: pw, role: 'user' 
+                });
+                if (error) throw error;
+                showToast("User saved successfully");
+                document.getElementById('new-user-name').value = '';
+                document.getElementById('new-user-pwd').value = '';
+                await fetchAllData(); 
+            } catch (e) {
+                console.error(e);
+                showToast("Error saving user. It may already exist.", "error");
+            }
+        }
+
+        // --- Projects Tab (New Structure) ---
+        function renderAdminProjectsManageList() {
+            const container = document.getElementById('admin-projects-manage-list');
+            if(state.projects.length === 0) return container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-sm"><i class="ph-fill ph-folder text-4xl text-slate-300 mb-2 block"></i><p class="text-slate-500 font-medium text-sm">No works created yet.</p></div>`;
+
+            const grouped = {};
+            state.projects.forEach(p => { if(!grouped[p.month]) grouped[p.month] = []; grouped[p.month].push(p); });
+
+            let html = '';
+            for(const [month, projs] of Object.entries(grouped)) {
+                html += `
+                    <div class="mb-4">
+                        <h4 class="text-[11px] font-bold text-brand-500 mb-2 uppercase tracking-widest pl-2">${formatMonth(month)}</h4>
+                        <div class="space-y-2">
+                            ${projs.map(p => `
+                                <button onclick="openProjectAllocation('${p.id}')" class="w-full bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between hover:shadow-md transition-all active:scale-[0.98] group">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
+                                            <i class="ph-fill ph-folder-notch text-brand-400 text-lg"></i>
+                                        </div>
+                                        <p class="font-bold text-slate-800">${p.name}</p>
+                                    </div>
+                                    <i class="ph-bold ph-caret-right text-slate-300 group-hover:text-brand-500 transition-colors"></i>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        window.openProjectAllocation = function(projectId) {
+            state.adminActiveProjectId = projectId;
+            document.getElementById('admin-projects-main-view').classList.add('view-hidden');
+            document.getElementById('admin-project-allocation-view').classList.remove('view-hidden');
+            renderAdminProjectAllocationView(projectId);
+        }
+
+        window.backToProjectsMain = function() {
+            state.adminActiveProjectId = null;
+            document.getElementById('admin-project-allocation-view').classList.add('view-hidden');
+            document.getElementById('admin-projects-main-view').classList.remove('view-hidden');
+            renderAdminProjectsManageList();
+        }
+
+        function renderAdminProjectAllocationView(projectId) {
+            const project = state.projects.find(p => p.id === projectId);
+            if(!project) return backToProjectsMain();
+
+            document.getElementById('allocation-project-name').innerText = `${project.name} (${formatMonth(project.month)})`;
+            document.getElementById('alloc-project-id').value = projectId;
+
+            // Populate users dropdown
+            let userOptions = state.users.filter(u=>u.role!=='admin').map(u => `<option value="${u.id}">${u.username}</option>`);
+            
+            // Find guests across all expenses (not just this project, to allow allocating to existing guests)
+            const guestNames = new Set();
+            state.expenses.filter(e => e.userId === 'guest_user' && e.guestName).forEach(e => guestNames.add(capitalize(e.guestName.trim())));
+            
+            if(guestNames.size > 0) {
+                userOptions.push(`<optgroup label="Known Guests">`);
+                guestNames.forEach(gn => userOptions.push(`<option value="guest|${gn}">${gn} (Guest)</option>`));
+                userOptions.push(`</optgroup>`);
+            }
+
+            const userSelect = document.getElementById('alloc-user');
+            userSelect.innerHTML = `<option value="">Select User or Guest...</option>` + userOptions.join('');
+
+            // List current allocations for this project
+            const container = document.getElementById('project-current-allocations');
+            const projAllocations = state.allocations.filter(a => a.projectId === projectId);
+
+            if(projAllocations.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-500 italic px-2">No funds allocated yet.</p>`;
+            } else {
+                container.innerHTML = projAllocations.map(a => {
+                    const isGuest = a.userId === 'guest_user';
+                    const name = isGuest ? `${a.guestName} (Guest)` : (state.users.find(u => u.id === a.userId)?.username || 'Unknown');
+                    return `
+                        <div class="bg-white p-3.5 rounded-2xl border border-slate-100 flex justify-between items-center shadow-sm">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-xs">
+                                    ${name.substring(0,2).toUpperCase()}
+                                </div>
+                                <div>
+                                    <p class="font-bold text-slate-800 text-sm">${name}</p>
+                                    <p class="text-[10px] text-slate-400 font-medium tracking-wide">Project: ${project.name}</p>
+                                    ${a.settledExcess > 0 ? `<p class="text-[10px] text-emerald-600 font-medium mt-0.5">+₹${formatMoney(a.settledExcess)} settled</p>` : ''}
+                                </div>
+                            </div>
+                            <span class="font-extrabold text-slate-900 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">₹${formatMoney(a.amount)}</span>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        window.saveProject = async function() {
+            const month = document.getElementById('new-proj-month').value;
+            const name = document.getElementById('new-proj-name').value.trim();
+            if(!month || !name) return showToast("Fill all fields", "error");
+
+            try {
+                const { error } = await supabase.from('exp_projects').insert({ month, name });
+                if (error) throw error;
+                showToast("Project created");
+                document.getElementById('new-proj-name').value = '';
+                await fetchAllData();
+            } catch (e) {
+                console.error(e);
+                showToast("Error creating project", "error");
+            }
+        }
+
+        window.allocateFunds = async function() {
+            const userVal = document.getElementById('alloc-user').value;
+            const projectId = document.getElementById('alloc-project-id').value;
+            const amount = Number(document.getElementById('alloc-amount').value);
+            
+            if(!userVal || !projectId || isNaN(amount) || amount <= 0) return showToast("Select user and enter valid amount", "error");
+
+            let userId = userVal;
+            let guestName = null;
+            if (userVal.startsWith('guest|')) {
+                userId = 'guest_user';
+                guestName = userVal.split('|')[1];
+            }
+
+            const existing = state.allocations.find(a => 
+                a.projectId === projectId && 
+                a.userId === userId && 
+                (userId !== 'guest_user' || a.guestName === guestName)
+            );
+
+            try {
+                if (existing) {
+                    const { error } = await supabase.from('exp_allocations').update({ amount: existing.amount + amount }).eq('id', existing.id);
+                    if (error) throw error;
+                } else {
+                    const data = { user_id: userId, project_id: projectId, amount, settled_excess: 0 };
+                    if (guestName) data.guest_name = guestName;
+                    const { error } = await supabase.from('exp_allocations').insert(data);
+                    if (error) throw error;
+                }
+                showToast("Funds allocated");
+                document.getElementById('alloc-amount').value = '';
+                await fetchAllData();
+            } catch (e) {
+                console.error(e);
+                showToast("Error allocating funds", "error");
+            }
+        }
+
+        function renderAdminOverview() {
+            const container = document.getElementById('admin-balances-list');
+            let hasAnyData = false;
+            let html = '';
+
+            // Calculate last activity and sort projects by most recent
+            let sortedProjects = state.projects.map(proj => {
+                const projExpenses = state.expenses.filter(e => e.projectId === proj.id);
+                const lastActivity = projExpenses.length > 0 ? Math.max(...projExpenses.map(e => e.timestamp)) : 0;
+                return { ...proj, lastActivity };
+            });
+            sortedProjects.sort((a, b) => {
+                if (a.lastActivity !== b.lastActivity) return b.lastActivity - a.lastActivity;
+                return b.month.localeCompare(a.month);
+            });
+
+            sortedProjects.forEach(proj => {
+                const projAllocations = state.allocations.filter(a => a.projectId === proj.id);
+                const projExpenses = state.expenses.filter(e => e.projectId === proj.id);
+                
+                const participants = {};
+                
+                projAllocations.forEach(a => {
+                    const key = a.userId === 'guest_user' ? `guest_user|${capitalize(a.guestName||'Unknown')}` : a.userId;
+                    participants[key] = { allocId: a.id, allocated: a.amount, settled: (a.settledExcess||0), spent: 0, isGuest: a.userId === 'guest_user', name: '', id: a.userId, guestName: a.guestName };
+                });
+
+                projExpenses.forEach(e => {
+                    const gName = e.guestName ? capitalize(e.guestName.trim()) : 'Unknown';
+                    const key = e.userId === 'guest_user' ? `guest_user|${gName}` : e.userId;
+                    
+                    if(!participants[key]) participants[key] = { allocId: null, allocated: 0, settled: 0, spent: 0, isGuest: e.userId === 'guest_user', name: '', id: e.userId, guestName: gName };
+                    participants[key].spent += Number(e.amount);
+                });
+
+                const keys = Object.keys(participants);
+                if(keys.length === 0) return;
+                hasAnyData = true;
+
+                html += `<div class="mb-6"><h4 class="text-[11px] font-bold text-brand-500 mb-3 uppercase tracking-widest pl-2">${proj.name} <span class="text-slate-400 font-normal">(${formatMonth(proj.month)})</span></h4><div class="space-y-3">`;
+
+                keys.forEach(key => {
+                    const p = participants[key];
+                    if(!p.isGuest) {
+                        const u = state.users.find(u => u.id === p.id);
+                        p.name = u ? u.username : 'Unknown User';
+                    } else p.name = `${p.guestName} (Guest)`;
+
+                    const totalAvailable = p.allocated + p.settled;
+                    const balance = totalAvailable - p.spent;
+                    const isExcess = balance < 0;
+                    const excessAmount = Math.abs(balance);
+
+                    html += `
+                        <div class="bg-white p-4 rounded-3xl shadow-soft border ${isExcess ? 'border-red-200 bg-red-50/10' : 'border-slate-100'} transition-all">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-full ${isExcess ? 'bg-red-100 text-red-600' : 'bg-brand-100 text-brand-600'} flex items-center justify-center font-bold text-xs">
+                                        ${p.name.substring(0,2).toUpperCase()}
+                                    </div>
+                                    <p class="font-bold text-slate-800 text-sm">${p.name}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Balance</p>
+                                    <p class="font-extrabold text-base ${isExcess ? 'text-red-500' : 'text-emerald-500'}">
+                                        ${isExcess ? '-' : ''}₹${formatMoney(Math.abs(balance))}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex gap-2 text-xs font-medium mb-3">
+                                <div class="flex-1 bg-slate-50 border border-slate-100 rounded-xl p-2 text-center text-slate-500">
+                                    <span class="block text-[9px] uppercase tracking-wider text-slate-400 mb-0.5">Alloc</span>
+                                    ₹${formatMoney(p.allocated)}
+                                </div>
+                                <div class="flex-1 bg-slate-50 border border-slate-100 rounded-xl p-2 text-center text-slate-500">
+                                    <span class="block text-[9px] uppercase tracking-wider text-slate-400 mb-0.5">Paid</span>
+                                    ₹${formatMoney(p.settled)}
+                                </div>
+                                <div class="flex-1 bg-slate-100 border border-slate-200 rounded-xl p-2 text-center text-slate-700 font-bold shadow-inner">
+                                    <span class="block text-[9px] uppercase tracking-wider text-slate-500 mb-0.5 font-medium">Spent</span>
+                                    ₹${formatMoney(p.spent)}
+                                </div>
+                            </div>
+                            
+                            ${isExcess ? `
+                                <button onclick="markPaid('${p.allocId||''}', ${excessAmount}, '${p.id}', '${p.guestName||''}', '${proj.id}')" class="w-full py-2.5 bg-red-100 hover:bg-red-200 text-red-700 font-bold rounded-xl text-sm transition-colors flex justify-center items-center gap-1 active:scale-[0.98]">
+                                    <i class="ph-bold ph-check-circle"></i> Settle Excess (₹${formatMoney(excessAmount)})
+                                </button>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+                html += `</div></div>`;
+            });
+
+            if(!hasAnyData) container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-soft"><i class="ph-fill ph-scales text-4xl text-slate-300 mb-2 block"></i><p class="text-slate-500 font-medium text-sm">No activity found yet.</p></div>`;
+            else container.innerHTML = html;
+        }
+
+        window.markPaid = async function(allocationId, excessAmount, userId, guestName, projectId) {
+            try {
+                if (allocationId) {
+                    const alloc = state.allocations.find(a => a.id === allocationId);
+                    if(alloc) {
+                        const currentSettled = alloc.settledExcess || 0;
+                        const { error } = await supabase.from('exp_allocations').update({ settled_excess: currentSettled + excessAmount }).eq('id', allocationId);
+                        if (error) throw error;
+                    }
+                } else {
+                    const data = { user_id: userId, project_id: projectId, amount: 0, settled_excess: excessAmount };
+                    if(guestName) data.guest_name = guestName;
+                    const { error } = await supabase.from('exp_allocations').insert(data);
+                    if (error) throw error;
+                }
+                showToast("Excess marked as paid");
+                await fetchAllData();
+            } catch (e) {
+                console.error(e);
+                showToast("Error marking paid", "error");
+            }
+        }
+
+        // --- Expenses Tab (New Structure) ---
+        function renderAdminAllProjectsList() {
+            const container = document.getElementById('admin-all-projects-list');
+            if(state.projects.length === 0) return container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-soft"><i class="ph-fill ph-folder-open text-4xl text-slate-300 mb-2 block"></i><p class="text-slate-500 font-medium text-sm">No projects to display.</p></div>`;
+
+            const grouped = {};
+            state.projects.forEach(p => { if(!grouped[p.month]) grouped[p.month] = []; grouped[p.month].push(p); });
+
+            let html = '';
+            for(const [month, projs] of Object.entries(grouped)) {
+                html += `
+                    <div class="mb-4">
+                        <h4 class="text-[11px] font-bold text-brand-500 mb-2 uppercase tracking-widest pl-2">${formatMonth(month)}</h4>
+                        <div class="space-y-2">
+                            ${projs.map(p => {
+                                const expCount = state.expenses.filter(e => e.projectId === p.id).length;
+                                return `
+                                <button onclick="openAdminProjectExpenses('${p.id}')" class="w-full bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between hover:border-brand-300 hover:shadow-md transition-all active:scale-[0.98] group">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
+                                            <i class="ph-fill ph-receipt text-brand-400 text-lg"></i>
+                                        </div>
+                                        <div class="text-left">
+                                            <p class="font-bold text-slate-800">${p.name}</p>
+                                            <p class="text-[10px] text-slate-500">${expCount} entries</p>
+                                        </div>
+                                    </div>
+                                    <i class="ph-bold ph-caret-right text-slate-300 group-hover:text-brand-500 transition-colors"></i>
+                                </button>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+
+        window.openAdminProjectExpenses = function(projectId) {
+            state.adminActiveProjectId = projectId;
+            document.getElementById('admin-expenses-view-selector').classList.add('view-hidden');
+            document.getElementById('admin-expenses-detail-view').classList.remove('view-hidden');
+            populateAdminExpensesDetailDropdowns(projectId);
+            renderAdminProjectExpensesDetail();
+        }
+
+        window.backToAllProjectsExpenses = function() {
+            state.adminActiveProjectId = null;
+            document.getElementById('admin-expenses-detail-view').classList.add('view-hidden');
+            document.getElementById('admin-expenses-view-selector').classList.remove('view-hidden');
+            renderAdminAllProjectsList();
+        }
+
+        function populateAdminExpensesDetailDropdowns(projectId) {
+            const project = state.projects.find(p => p.id === projectId);
+            if(project) document.getElementById('expense-detail-project-name').innerText = `${project.name} (${formatMonth(project.month)})`;
+
+            const filterSelect = document.getElementById('admin-expense-filter-person');
+            const projExpenses = state.expenses.filter(e => e.projectId === projectId);
+            
+            const persons = new Set();
+            projExpenses.forEach(e => {
+                if(e.userId === 'guest_user') persons.add(`guest|${capitalize(e.guestName||'Unknown')}`);
+                else persons.add(`user|${e.userId}`);
+            });
+
+            filterSelect.innerHTML = `<option value="all">Filter: All Persons</option>`;
+            persons.forEach(p => {
+                const [type, val] = p.split('|');
+                let displayName = type === 'user' ? (state.users.find(u => u.id === val)?.username || 'Unknown User') : `${val} (Guest)`;
+                filterSelect.innerHTML += `<option value="${p}">${displayName}</option>`;
+            });
+            // Reset filters on load
+            filterSelect.value = 'all';
+            document.getElementById('admin-expense-sort').value = 'recent';
+        }
+
+        window.renderAdminProjectExpensesDetail = function() {
+            const projId = state.adminActiveProjectId;
+            if(!projId) return;
+
+            const filterVal = document.getElementById('admin-expense-filter-person').value;
+            const sortVal = document.getElementById('admin-expense-sort').value;
+            const container = document.getElementById('admin-project-expenses-list');
+            const totalAmtEl = document.getElementById('admin-project-total-amount');
+
+            let projExpenses = state.expenses.filter(e => e.projectId === projId);
+            
+            // 1. Filter
+            if(filterVal !== 'all') {
+                const [type, val] = filterVal.split('|');
+                if(type === 'user') projExpenses = projExpenses.filter(e => e.userId === val);
+                if(type === 'guest') projExpenses = projExpenses.filter(e => e.userId === 'guest_user' && capitalize(e.guestName||'Unknown') === val);
+            }
+
+            // Update Total
+            const grandTotal = projExpenses.reduce((s,e)=>s+Number(e.amount),0);
+            totalAmtEl.innerText = formatMoney(grandTotal);
+
+            if(projExpenses.length === 0) {
+                container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-soft"><i class="ph-fill ph-receipt text-4xl text-slate-300 mb-2 block"></i><p class="text-slate-500 font-medium text-sm">No expenses match criteria.</p></div>`;
+                return;
+            }
+
+            // Map unique users to colors for this view
+            const uniqueUsersMap = {};
+            let colorIndex = 0;
+            projExpenses.forEach(e => {
+                const gName = e.guestName ? capitalize(e.guestName.trim()) : 'Unknown';
+                const key = e.userId === 'guest_user' ? `Guest: ${gName}` : e.userId;
+                if(!uniqueUsersMap[key]) {
+                    let displayName = key.startsWith('Guest:') ? key : (state.users.find(u => u.id === key)?.username || 'Unknown User');
+                    uniqueUsersMap[key] = {
+                        name: displayName,
+                        colorClass: getUserColorClass(colorIndex++)
+                    };
+                }
+            });
+
+            // 2. Sort & Render
+            let html = '';
+
+            if (sortVal === 'user') {
+                // Group by User view
+                const grouped = {};
+                projExpenses.forEach(e => {
+                    const gName = e.guestName ? capitalize(e.guestName.trim()) : 'Unknown';
+                    const key = e.userId === 'guest_user' ? `Guest: ${gName}` : e.userId;
+                    if(!grouped[key]) grouped[key] = [];
+                    grouped[key].push(e);
+                });
+
+                for(const [key, exps] of Object.entries(grouped)) {
+                    const userMeta = uniqueUsersMap[key];
+                    const total = exps.reduce((s,e)=>s+Number(e.amount),0);
+                    
+                    // Sort descending within user
+                    exps.sort((a,b) => b.timestamp - a.timestamp);
+                    
+                    html += `
+                    <div class="bg-white p-4 rounded-3xl shadow-soft border border-slate-100 mb-4">
+                        <div class="flex justify-between items-center mb-3 pb-3 border-b border-slate-50">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full ${userMeta.colorClass} flex items-center justify-center font-bold text-xs border">
+                                    ${userMeta.name.substring(key.startsWith('Guest:') ? 7 : 0, key.startsWith('Guest:') ? 9 : 2).toUpperCase()}
+                                </div>
+                                <h4 class="font-bold text-slate-800 text-sm">${userMeta.name}</h4>
+                            </div>
+                            <span class="font-extrabold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-lg text-sm border border-brand-100">₹${formatMoney(total)}</span>
+                        </div>
+                        <div class="space-y-2">
+                            ${exps.map(e => {
+                                const config = categoryConfig[e.category] || categoryConfig['other'];
+                                return `
+                                <div class="flex justify-between items-center bg-slate-50/50 p-2.5 pl-3 rounded-2xl border border-slate-100">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-xl flex items-center justify-center ${config.color} ${config.bg} ${config.border} border shadow-sm">
+                                            <i class="ph-fill ${config.icon} text-lg"></i>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-slate-800 line-clamp-1">${e.desc}</p>
+                                            <p class="text-[10px] font-medium text-slate-500 mt-0.5">${new Date(e.timestamp).toLocaleDateString()}</p>
+                                        </div>
+                                    </div>
+                                    <span class="font-bold text-slate-700 text-sm">₹${formatMoney(e.amount)}</span>
+                                </div>
+                            `}).join('')}
+                        </div>
+                    </div>`;
+                }
+            } else {
+                // Flat List view
+                if (sortVal === 'recent') projExpenses.sort((a, b) => b.timestamp - a.timestamp);
+                else if (sortVal === 'oldest') projExpenses.sort((a, b) => a.timestamp - b.timestamp);
+                else if (sortVal === 'amount_high') projExpenses.sort((a, b) => b.amount - a.amount);
+                else if (sortVal === 'amount_low') projExpenses.sort((a, b) => a.amount - b.amount);
+
+                html += `<div class="space-y-2">`;
+                html += projExpenses.map(e => {
+                    const config = categoryConfig[e.category] || categoryConfig['other'];
+                    const gName = e.guestName ? capitalize(e.guestName.trim()) : 'Unknown';
+                    const key = e.userId === 'guest_user' ? `Guest: ${gName}` : e.userId;
+                    const userMeta = uniqueUsersMap[key];
+
+                    return `
+                    <div class="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden pl-4">
+                        <div class="absolute left-0 top-0 bottom-0 w-1 ${userMeta.colorClass.split(' ')[0]}"></div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center ${config.color} ${config.bg} ${config.border} border shadow-sm">
+                                <i class="ph-fill ${config.icon} text-lg"></i>
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-slate-800 line-clamp-1">${e.desc}</p>
+                                <div class="flex items-center gap-1.5 mt-0.5">
+                                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${userMeta.colorClass} border">${userMeta.name}</span>
+                                    <span class="text-[10px] font-medium text-slate-500">${new Date(e.timestamp).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <span class="font-extrabold text-slate-900 text-[15px]">₹${formatMoney(e.amount)}</span>
+                    </div>
+                    `;
+                }).join('');
+                html += `</div>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        window.navToTracker = function(workId) {
+            state.activeWorkId = workId;
+            document.getElementById('user-view-works').classList.add('view-hidden');
+            document.getElementById('user-view-tracker').classList.remove('view-hidden');
+            renderUserTracker();
+        }
+
+        window.navToWorks = function(monthStr) {
+            state.activeMonth = monthStr || state.activeMonth;
+            state.activeWorkId = null;
+            document.getElementById('user-view-months').classList.add('view-hidden');
+            document.getElementById('user-view-works').classList.remove('view-hidden');
+            document.getElementById('user-view-tracker').classList.add('view-hidden');
+            renderUserWorks(state.activeMonth);
+        }
+
+        window.navToMonths = function() {
+            state.activeMonth = null;
+            state.activeWorkId = null;
+            document.getElementById('user-view-months').classList.remove('view-hidden');
+            document.getElementById('user-view-works').classList.add('view-hidden');
+            document.getElementById('user-view-tracker').classList.add('view-hidden');
+            renderUserMonths();
+        }
+        
+        function renderUserMonths() {
+            document.getElementById('user-header-title').innerText = 'Select Month';
+            document.getElementById('user-header-subtitle').innerText = 'Welcome, ' + state.currentUser.username;
+            
+            // Allow all users to see all active project months
+            let uniqueMonths = [...new Set(state.projects.map(p => p.month))].sort().reverse();
+            
+            const container = document.getElementById('user-view-months');
+            if(uniqueMonths.length === 0) {
+                container.innerHTML = `<div class="bg-white p-8 rounded-[32px] text-center shadow-soft border border-slate-100 mt-6"><i class="ph-fill ph-calendar-blank text-5xl text-slate-200 mb-3 block"></i><p class="text-slate-500 font-medium">No active projects found.</p></div>`;
+                return;
+            }
+
+            container.innerHTML = uniqueMonths.map(m => `
+                <button onclick="navToWorks('${m}')" class="w-full bg-white p-5 rounded-[24px] shadow-soft border border-slate-100 flex items-center justify-between hover:border-brand-300 hover:shadow-md active:scale-[0.98] transition-all group">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-slate-50 text-slate-500 rounded-2xl flex items-center justify-center border border-slate-100 group-hover:bg-brand-50 group-hover:text-brand-600 group-hover:border-brand-200 transition-colors shadow-sm">
+                            <i class="ph-bold ph-calendar-blank text-xl"></i>
+                        </div>
+                        <span class="font-extrabold text-lg text-slate-800 tracking-tight">${formatMonth(m)}</span>
+                    </div>
+                    <i class="ph-bold ph-caret-right text-slate-300 group-hover:text-brand-500 transition-colors"></i>
+                </button>
+            `).join('');
+        }
+
+        function renderUserWorks(month) {
+            document.getElementById('user-header-title').innerText = formatMonth(month);
+            document.getElementById('user-header-subtitle').innerText = 'Select Work';
+
+            // Allow all users to see all works for the selected month
+            let works = state.projects.filter(p => p.month === month);
+            
+            const container = document.getElementById('works-list-container');
+            container.innerHTML = works.map(w => `
+                <button onclick="navToTracker('${w.id}')" class="w-full bg-white p-5 rounded-[24px] shadow-soft border border-slate-100 flex items-center justify-between hover:border-brand-300 hover:shadow-md active:scale-[0.98] transition-all group">
+                    <div class="text-left flex items-center gap-4">
+                        <div class="w-12 h-12 bg-slate-50 text-slate-500 rounded-[18px] flex items-center justify-center border border-slate-100 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
+                            <i class="ph-fill ph-folder-notch text-xl"></i>
+                        </div>
+                        <p class="font-bold text-base text-slate-800 tracking-tight">${w.name}</p>
+                    </div>
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                        <i class="ph-bold ph-arrow-right text-slate-300 group-hover:text-brand-500"></i>
+                    </div>
+                </button>
+            `).join('');
+        }
+
+        function renderUserTracker() {
+            const project = state.projects.find(p => p.id === state.activeWorkId);
+            if(!project) return;
+
+            document.getElementById('user-header-title').innerText = project.name;
+            document.getElementById('user-header-subtitle').innerText = state.isGuest ? 'Guest Access' : 'Expense Tracker';
+
+            const myExpenses = state.expenses.filter(e => e.userId === state.currentUser.id && e.projectId === state.activeWorkId);
+            const totalSpent = myExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+            
+            document.getElementById('tracker-spent').innerText = formatMoney(totalSpent);
+            document.getElementById('tracker-count').innerText = `${myExpenses.length} items`;
+
+            const balanceContainer = document.getElementById('tracker-balance-container');
+            if (state.isGuest) {
+                document.getElementById('tracker-spent-label').innerText = "Guest Total Added";
+                balanceContainer.classList.add('hidden');
+                document.getElementById('expenses-list-title').innerText = "Your Expenses";
+            } else {
+                document.getElementById('tracker-spent-label').innerText = "Total Spent";
+                balanceContainer.classList.remove('hidden');
+                document.getElementById('expenses-list-title').innerText = "My Expenses";
+                
+                const allocation = state.allocations.find(a => a.userId === state.currentUser.id && a.projectId === state.activeWorkId);
+                const allocatedAmt = allocation ? Number(allocation.amount) : 0;
+                const settledExcess = allocation ? Number(allocation.settledExcess || 0) : 0;
+                const balance = (allocatedAmt + settledExcess) - totalSpent;
+
+                // Show badge if user is tracking expenses in a project they weren't allocated to
+                if (!allocation) {
+                    document.getElementById('tracker-allocated').innerHTML = `<span class="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Not Allocated</span>`;
+                } else {
+                    document.getElementById('tracker-allocated').innerText = `₹${formatMoney(allocatedAmt)}` + (settledExcess > 0 ? ` (+₹${formatMoney(settledExcess)})` : '');
+                }
+                
+                const balCard = document.getElementById('tracker-balance-card');
+                const balLabel = document.getElementById('tracker-balance-label');
+                const balText = document.getElementById('tracker-balance');
+
+                if (balance < 0) {
+                    balCard.className = "bg-red-950/40 rounded-2xl p-3.5 flex-1 border border-red-500/30 backdrop-blur-md transition-colors duration-300";
+                    balLabel.innerHTML = `<i class="ph-bold ph-warning-circle"></i> Excess`;
+                    balLabel.className = "text-[10px] font-bold uppercase tracking-wider text-red-300 mb-1 flex items-center gap-1";
+                    balText.className = "font-bold text-base text-red-100";
+                    balText.innerText = `-₹${formatMoney(Math.abs(balance))}`;
+                } else {
+                    balCard.className = "bg-brand-900/40 rounded-2xl p-3.5 flex-1 border border-brand-500/30 backdrop-blur-md transition-colors duration-300";
+                    balLabel.innerHTML = `<i class="ph-bold ph-chart-line-up"></i> Balance`;
+                    balLabel.className = "text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-1 flex items-center gap-1";
+                    balText.className = "font-bold text-base text-brand-50";
+                    balText.innerText = `₹${formatMoney(balance)}`;
+                }
+            }
+
+            const listContainer = document.getElementById('tracker-expenses-list');
+            if(myExpenses.length === 0) {
+                listContainer.innerHTML = `<div class="text-center py-10"><i class="ph-fill ph-receipt text-4xl text-slate-200 mb-2 block"></i><span class="text-slate-400 text-sm font-medium">No expenses yet.</span></div>`;
+            } else {
+                listContainer.innerHTML = myExpenses.map(exp => {
+                    const config = categoryConfig[exp.category] || categoryConfig['other'];
+                    const timeStr = new Date(exp.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const guestTag = state.isGuest && exp.guestName ? `<span class="text-[9px] uppercase font-bold tracking-wider bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md ml-2 border border-slate-200">${exp.guestName}</span>` : '';
+                    return `
+                        <div class="flex items-center justify-between p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors rounded-[24px] cursor-pointer" onclick="editExpense('${exp.id}')">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-[16px] flex items-center justify-center ${config.color} ${config.bg} ${config.border} border shadow-sm">
+                                    <i class="ph-fill ${config.icon} text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-slate-800 text-sm line-clamp-1 w-32 sm:w-auto">${exp.desc} ${guestTag}</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5 font-medium">${timeStr}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center pl-2">
+                                <p class="font-extrabold text-slate-900 text-[15px] tracking-tight">₹${formatMoney(exp.amount)}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        window.openAddExpenseModal = function() {
+            state.editingExpenseId = null;
+            document.getElementById('expense-form').reset();
+            document.getElementById('modal-title').innerText = 'Record Expense';
+            document.getElementById('submit-btn-text').innerText = 'Save Expense';
+            
+            if (state.isGuest) {
+                document.getElementById('guest-name-container').classList.remove('view-hidden');
+                document.getElementById('expense-guest-name').required = true;
+            } else {
+                document.getElementById('guest-name-container').classList.add('view-hidden');
+                document.getElementById('expense-guest-name').required = false;
+            }
+
+            openExpenseModalUI();
+        }
+
+        window.editExpense = function(expId) {
+            const exp = state.expenses.find(e => e.id === expId);
+            if(!exp) return;
+            
+            state.editingExpenseId = expId;
+            document.getElementById('expense-amount').value = exp.amount;
+            document.getElementById('expense-desc').value = exp.desc;
+            const categoryInput = document.querySelector(`input[name="category"][value="${exp.category}"]`);
+            if(categoryInput) categoryInput.checked = true;
+            
+            if (exp.userId === 'guest_user') {
+                document.getElementById('guest-name-container').classList.remove('view-hidden');
+                document.getElementById('expense-guest-name').required = true;
+                document.getElementById('expense-guest-name').value = exp.guestName || '';
+            } else {
+                document.getElementById('guest-name-container').classList.add('view-hidden');
+                document.getElementById('expense-guest-name').required = false;
+            }
+
+            document.getElementById('modal-title').innerText = 'Edit Expense';
+            document.getElementById('submit-btn-text').innerText = 'Update Expense';
+            
+            openExpenseModalUI();
+        }
+
+        function openExpenseModalUI() {
+            const modal = document.getElementById('expense-modal');
+            const backdrop = document.getElementById('modal-backdrop');
+            const content = document.getElementById('modal-content');
+            
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            requestAnimationFrame(() => {
+                backdrop.classList.remove('opacity-0');
+                content.classList.add('modal-enter-active');
+            });
+            setTimeout(() => document.getElementById('expense-amount').focus(), 400);
+        }
+
+        window.closeExpenseModal = function() {
+            const modal = document.getElementById('expense-modal');
+            const backdrop = document.getElementById('modal-backdrop');
+            const content = document.getElementById('modal-content');
+
+            backdrop.classList.add('opacity-0');
+            content.classList.remove('modal-enter-active');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                document.getElementById('expense-form').reset();
+                state.editingExpenseId = null;
+            }, 400);
+        }
+
+        window.handleExpenseSubmit = async function(event) {
+            event.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            
+            const amount = document.getElementById('expense-amount').value;
+            const desc = document.getElementById('expense-desc').value;
+            const category = document.querySelector('input[name="category"]:checked').value;
+            
+            let targetProjectId = state.activeWorkId;
+            let targetUserId = state.currentUser ? state.currentUser.id : null;
+            
+            if (state.editingExpenseId) {
+                const existing = state.expenses.find(e => e.id === state.editingExpenseId);
+                if(existing) {
+                    targetProjectId = existing.projectId;
+                    targetUserId = existing.userId;
+                }
+            }
+
+            if(!amount || !desc || !targetUserId || !targetProjectId) return;
+
+            const expenseData = {
+                user_id: targetUserId,
+                project_id: targetProjectId,
+                amount: Number(amount),
+                description: desc,
+                category: category
+            };
+
+            if (targetUserId === 'guest_user') {
+                const gName = document.getElementById('expense-guest-name').value.trim();
+                if(!gName) return showToast("Please enter your name", "error");
+                expenseData.guest_name = gName;
+            }
+
+            btn.disabled = true;
+            const originalText = document.getElementById('submit-btn-text').innerText;
+            document.getElementById('submit-btn-text').innerHTML = `<i class="ph-bold ph-spinner animate-spin"></i> Saving...`;
+
+            // Optimistic UI Update function
+            const optimisticUpdate = () => {
+                const tempExp = {
+                    id: state.editingExpenseId || ('temp-' + Date.now()),
+                    projectId: targetProjectId,
+                    userId: targetUserId,
+                    amount: Number(amount),
+                    desc: desc,
+                    category: category,
+                    guestName: expenseData.guest_name || null,
+                    timestamp: Date.now()
+                };
+
+                if (state.editingExpenseId) {
+                    const idx = state.expenses.findIndex(e => e.id === state.editingExpenseId);
+                    if(idx > -1) state.expenses[idx] = tempExp;
+                } else {
+                    state.expenses.unshift(tempExp);
+                }
+                
+                updateUIBasedOnRole(); // Instant Forced UI Refresh
+                closeExpenseModal();
+            };
+
+            try {
+                if (!navigator.onLine) {
+                    throw new Error("Offline"); // Force catch block if device knows it's offline
+                }
+
+                if (state.editingExpenseId) {
+                    const { error } = await supabase.from('exp_expenses').update(expenseData).eq('id', state.editingExpenseId);
+                    if (error) throw error;
+                    showToast("Expense updated.");
+                } else {
+                    const { error } = await supabase.from('exp_expenses').insert(expenseData);
+                    if (error) throw error;
+                    showToast("Expense saved.");
+                }
+                
+                optimisticUpdate();
+                await fetchAllData(); // Background real-sync
+                
+            } catch (error) {
+                console.error("Save Error:", error);
+                
+                // Fallback to offline queue on network issues
+                if (!navigator.onLine || error.message === 'Offline' || String(error).includes('fetch') || String(error).includes('NetworkError')) {
+                    if (state.editingExpenseId) {
+                        saveToOfflineQueue('update', 'exp_expenses', expenseData, state.editingExpenseId);
+                    } else {
+                        saveToOfflineQueue('insert', 'exp_expenses', expenseData);
+                    }
+                    showToast("Network issue. Saved offline.", "warning");
+                    optimisticUpdate();
+                } else {
+                    showToast("Error saving data.", "error");
+                }
+            }
+            
+            btn.disabled = false;
+            document.getElementById('submit-btn-text').innerText = originalText;
+        }
+
+        window.refreshData = async function(btn) {
+            if (btn) {
+                const icon = btn.querySelector('i');
+                icon.classList.add('animate-spin');
+            }
+            
+            await fetchAllData();
+            showToast("Data refreshed!");
+            
+            if (btn) {
+                const icon = btn.querySelector('i');
+                setTimeout(() => icon.classList.remove('animate-spin'), 500);
+            }
+        }
+
+        window.showToast = function(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            let icon = 'ph-check-circle text-brand-400';
+            let bgClass = 'bg-slate-900 border-slate-800 text-white';
+            
+            if (type === 'error') {
+                icon = 'ph-warning-circle text-red-400';
+                bgClass = 'bg-red-950 border-red-900 text-red-50';
+            } else if (type === 'warning' || type === 'info') {
+                icon = 'ph-info text-amber-400';
+                bgClass = 'bg-amber-950 border-amber-900 text-amber-50';
+            }
+            
+            const toastHTML = `
+                <div class="${bgClass} px-4 py-3 rounded-2xl shadow-xl font-medium text-[13px] flex items-center gap-3 transition-all duration-400 transform -translate-y-8 opacity-0 pointer-events-auto border max-w-sm w-full backdrop-blur-md">
+                    <i class="ph-fill ${icon} text-lg shrink-0"></i>
+                    ${message}
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', toastHTML);
+            const toast = container.lastElementChild;
+            
+            requestAnimationFrame(() => toast.classList.remove('-translate-y-8', 'opacity-0'));
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'scale-95');
+                setTimeout(() => toast.remove(), 400);
+            }, 3500);
+        }
+
+        // Boot up!
+        initApp();
+    </script>
+</body>
+</html>
