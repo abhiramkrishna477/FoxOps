@@ -53,7 +53,6 @@
     </style>
 </head>
 
-<!-- Body Wrapper to force mobile layout on PC -->
 <body class="bg-slate-200 h-screen w-screen flex flex-col items-center justify-center sm:p-4 font-sans antialiased text-slate-900 selection:bg-brand-400 selection:text-white">
 
     <!-- Mobile Device Frame -->
@@ -175,6 +174,9 @@
                             </h2>
                         </div>
 
+                        <!-- Category Summary Container for Admin -->
+                        <div id="admin-category-summary" class="flex gap-3 overflow-x-auto no-scrollbar py-2 -mt-2 mb-2"></div>
+
                         <div id="admin-project-expenses-list" class="space-y-4"></div>
                     </div>
                 </div>
@@ -287,9 +289,14 @@
                                 </h2>
                                 
                                 <div class="flex gap-3" id="tracker-balance-container">
-                                    <div class="bg-slate-900/80 rounded-2xl p-3.5 flex-1 border border-slate-800/80 backdrop-blur-md">
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1"><i class="ph-bold ph-wallet"></i> Allocated</p>
-                                        <p class="font-bold text-base" id="tracker-allocated">₹0</p>
+                                    <!-- Editable Allocation Block -->
+                                    <div class="bg-slate-900/80 rounded-2xl p-3.5 flex-1 border border-slate-800/80 backdrop-blur-md relative group cursor-pointer" onclick="openSelfAllocModal()">
+                                        <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity"></div>
+                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                                            <span class="flex items-center gap-1"><i class="ph-bold ph-wallet"></i> Allocated</span>
+                                            <i class="ph-bold ph-pencil-simple text-slate-500 group-hover:text-brand-300 transition-colors"></i>
+                                        </p>
+                                        <p class="font-bold text-base relative z-10" id="tracker-allocated">₹0</p>
                                     </div>
                                     <div class="bg-brand-900/40 rounded-2xl p-3.5 flex-1 border border-brand-500/30 backdrop-blur-md transition-colors duration-300" id="tracker-balance-card">
                                         <p class="text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-1 flex items-center gap-1" id="tracker-balance-label"><i class="ph-bold ph-chart-line-up"></i> Balance</p>
@@ -300,11 +307,14 @@
                         </div>
                     </section>
 
-                    <div class="mb-8">
+                    <div class="mb-6">
                         <button onclick="openAddExpenseModal()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] text-white py-4 px-4 rounded-2xl font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-[0_10px_30px_rgba(20,184,166,0.3)] border border-brand-400/20">
                             <i class="ph-bold ph-plus-circle text-xl"></i> Add Expense
                         </button>
                     </div>
+
+                    <!-- Category Summary Container for User -->
+                    <div id="user-category-summary" class="mb-6 flex gap-3 overflow-x-auto no-scrollbar py-2 -mt-2"></div>
 
                     <section>
                         <div class="flex justify-between items-end mb-4 px-2">
@@ -320,6 +330,7 @@
             </main>
         </div>
 
+        <!-- Add Expense Modal -->
         <div id="expense-modal" class="absolute inset-0 z-[100] hidden flex-col justify-end overflow-hidden">
             <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-md transition-opacity opacity-0" id="modal-backdrop" onclick="closeExpenseModal()"></div>
             <div class="relative w-full bg-white rounded-t-[40px] shadow-2xl modal-enter z-10 max-h-[92vh] flex flex-col border-t border-slate-200" id="modal-content">
@@ -441,6 +452,24 @@
             </div>
         </div>
 
+        <!-- Self Allocation Modal -->
+        <div id="self-alloc-modal" class="absolute inset-0 z-[120] hidden flex-col justify-center items-center px-4">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity opacity-0" id="self-alloc-backdrop" onclick="closeSelfAllocModal()"></div>
+            <div class="bg-white p-6 rounded-3xl shadow-2xl relative z-10 w-full max-w-[320px] transform scale-95 opacity-0 transition-all duration-300" id="self-alloc-content">
+                <div class="flex justify-between items-center mb-5">
+                    <h3 class="text-xl font-bold text-slate-800 tracking-tight">Set My Budget</h3>
+                    <button onclick="closeSelfAllocModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"><i class="ph-bold ph-x"></i></button>
+                </div>
+                <div class="relative mb-5">
+                    <span class="absolute left-5 top-1/2 -translate-y-1/2 text-xl font-bold text-slate-400">₹</span>
+                    <input type="number" id="self-alloc-amount" placeholder="Amount" class="w-full bg-slate-50 border border-slate-200 rounded-[24px] py-4 pl-12 pr-4 text-2xl font-bold text-slate-800 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                </div>
+                <button onclick="saveSelfAllocation()" class="w-full bg-slate-900 text-white rounded-2xl py-4 font-bold text-lg hover:bg-slate-800 active:scale-[0.98] transition-all flex justify-center gap-2 items-center shadow-lg">
+                    <i class="ph-bold ph-check-circle"></i> Save Allocation
+                </button>
+            </div>
+        </div>
+
         <!-- Confirm Modal -->
         <div id="confirm-modal" class="absolute inset-0 z-[120] hidden flex-col justify-center items-center px-4">
             <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity opacity-0" id="confirm-backdrop"></div>
@@ -537,7 +566,6 @@
             'other': { icon: 'ph-dots-three', color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-200' }
         };
 
-        // User color palette for expense tracking
         const userColors = [
             'bg-blue-50 text-blue-700 border-blue-200',
             'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -588,7 +616,7 @@
             
             if (syncedCount > 0) {
                 showToast(`Synced ${syncedCount} offline entries!`);
-                await fetchAllData(); // Force refresh to map real DB IDs
+                await fetchAllData(); 
             }
         }
 
@@ -598,7 +626,6 @@
             try {
                 await syncOfflineQueue();
                 await fetchAllData();
-                // setupRealtimeListeners() completely removed to prevent WebSocket SecurityError in Canvas
             } catch (error) {
                 console.error("Initialization error:", error);
                 showToast("Failed to connect to database.", "error");
@@ -656,6 +683,47 @@
                     adminUser.password = '123'; 
                 }
             }
+        }
+
+        function formatMoney(amount) { return parseFloat(amount).toLocaleString('en-IN'); }
+        function formatMonth(monthStr) {
+            if(!monthStr) return '';
+            const d = new Date(monthStr + '-01');
+            return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        }
+        function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase(); }
+
+        // Category Summary Helper
+        function generateCategorySummaryHTML(expensesToSummarize) {
+            if (!expensesToSummarize || expensesToSummarize.length === 0) return '';
+            const summaryMap = {};
+            expensesToSummarize.forEach(e => {
+                if (!summaryMap[e.category]) summaryMap[e.category] = 0;
+                summaryMap[e.category] += Number(e.amount);
+            });
+
+            const keys = Object.keys(summaryMap);
+            if (keys.length === 0) return '';
+
+            // Sort by amount desc
+            keys.sort((a, b) => summaryMap[b] - summaryMap[a]);
+
+            let html = keys.map(cat => {
+                const config = categoryConfig[cat] || categoryConfig['other'];
+                const amount = summaryMap[cat];
+                return `
+                    <div class="flex-shrink-0 bg-white border border-slate-100 p-2.5 pr-4 rounded-2xl shadow-sm flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-[14px] flex items-center justify-center ${config.color} ${config.bg} ${config.border} border">
+                            <i class="ph-fill ${config.icon} text-lg"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 mb-0.5">${cat}</p>
+                            <p class="font-bold text-slate-800 text-sm">₹${formatMoney(amount)}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            return html;
         }
 
         window.handleLogin = async function(e) {
@@ -759,14 +827,6 @@
             }
         }
 
-        function formatMoney(amount) { return parseFloat(amount).toLocaleString('en-IN'); }
-        function formatMonth(monthStr) {
-            if(!monthStr) return '';
-            const d = new Date(monthStr + '-01');
-            return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        }
-        function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase(); }
-
         // --- Users Tab ---
         function renderAdminUsersList() {
             const container = document.getElementById('admin-users-list');
@@ -797,7 +857,7 @@
             const pw = document.getElementById('new-user-pwd').value.trim();
             if(!un || !pw) return showToast("Fill all fields", "error");
 
-            const uid = un.toLowerCase(); // Enforce case insensitivity on ID
+            const uid = un.toLowerCase();
 
             try {
                 if (state.editingUserId) {
@@ -906,7 +966,6 @@
             // Populate users dropdown
             let userOptions = state.users.filter(u=>u.role!=='admin').map(u => `<option value="${u.id}">${u.username}</option>`);
             
-            // Find guests across all expenses (not just this project, to allow allocating to existing guests)
             const guestNames = new Set();
             state.expenses.filter(e => e.userId === 'guest_user' && e.guestName).forEach(e => guestNames.add(capitalize(e.guestName.trim())));
             
@@ -1008,7 +1067,7 @@
             const projectId = document.getElementById('alloc-project-id').value;
             const amount = Number(document.getElementById('alloc-amount').value);
             
-            if(!userVal || !projectId || isNaN(amount) || amount <= 0) return showToast("Select user and enter valid amount", "error");
+            if(!userVal || !projectId || isNaN(amount) || amount < 0) return showToast("Select user and enter valid amount", "error");
 
             let userId = userVal;
             let guestName = null;
@@ -1019,14 +1078,12 @@
 
             try {
                 if (state.editingAllocId) {
-                    // Update exact allocation
                     const { error } = await supabase.from('exp_allocations').update({ 
                         user_id: userId, amount: amount, guest_name: guestName || null 
                     }).eq('id', state.editingAllocId);
                     if (error) throw error;
                     state.editingAllocId = null;
                 } else {
-                    // Create or Add to existing
                     const existing = state.allocations.find(a => a.projectId === projectId && a.userId === userId && (userId !== 'guest_user' || a.guestName === guestName));
                     if (existing) {
                         const { error } = await supabase.from('exp_allocations').update({ amount: existing.amount + amount }).eq('id', existing.id);
@@ -1044,6 +1101,92 @@
             } catch (e) {
                 console.error(e);
                 showToast("Error allocating funds", "error");
+            }
+        }
+
+        window.openSelfAllocModal = function() {
+            if (state.isGuest) {
+                showToast("Guests cannot set their own budget.", "warning");
+                return;
+            }
+            
+            const allocation = state.allocations.find(a => a.userId === state.currentUser.id && a.projectId === state.activeWorkId);
+            document.getElementById('self-alloc-amount').value = allocation ? allocation.amount : '';
+
+            const modal = document.getElementById('self-alloc-modal');
+            const backdrop = document.getElementById('self-alloc-backdrop');
+            const content = document.getElementById('self-alloc-content');
+
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            requestAnimationFrame(() => {
+                backdrop.classList.remove('opacity-0');
+                content.classList.remove('scale-95', 'opacity-0');
+            });
+            setTimeout(() => document.getElementById('self-alloc-amount').focus(), 100);
+        }
+
+        window.closeSelfAllocModal = function() {
+            const modal = document.getElementById('self-alloc-modal');
+            const backdrop = document.getElementById('self-alloc-backdrop');
+            const content = document.getElementById('self-alloc-content');
+
+            backdrop.classList.add('opacity-0');
+            content.classList.add('scale-95', 'opacity-0');
+
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }, 300);
+        }
+
+        window.saveSelfAllocation = async function() {
+            const amountStr = document.getElementById('self-alloc-amount').value;
+            const amount = Number(amountStr);
+            if (amountStr === '' || isNaN(amount) || amount < 0) return showToast("Enter a valid amount", "error");
+
+            const userId = state.currentUser.id;
+            const projectId = state.activeWorkId;
+            const existing = state.allocations.find(a => a.userId === userId && a.projectId === projectId);
+
+            // Optimistic update
+            const optimisticAllocation = {
+                id: existing ? existing.id : 'temp-alloc-' + Date.now(),
+                projectId: projectId,
+                userId: userId,
+                amount: amount,
+                settledExcess: existing ? existing.settledExcess : 0,
+                guestName: null
+            };
+
+            if (existing) {
+                const idx = state.allocations.findIndex(a => a.id === existing.id);
+                if (idx > -1) state.allocations[idx] = optimisticAllocation;
+            } else {
+                state.allocations.push(optimisticAllocation);
+            }
+            updateUIBasedOnRole();
+            closeSelfAllocModal();
+
+            try {
+                if (existing) {
+                    const { error } = await supabase.from('exp_allocations').update({ amount: amount }).eq('id', existing.id);
+                    if (error) throw error;
+                } else {
+                    const { error } = await supabase.from('exp_allocations').insert({
+                        user_id: userId,
+                        project_id: projectId,
+                        amount: amount,
+                        settled_excess: 0
+                    });
+                    if (error) throw error;
+                }
+                showToast("Budget updated");
+                await fetchAllData();
+            } catch (e) {
+                console.error(e);
+                showToast("Error updating budget", "error");
+                await fetchAllData(); // Revert optimistic UI on fail
             }
         }
 
@@ -1077,7 +1220,6 @@
             let hasAnyData = false;
             let html = '';
 
-            // Calculate last activity and sort projects by most recent
             let sortedProjects = state.projects.map(proj => {
                 const projExpenses = state.expenses.filter(e => e.projectId === proj.id);
                 const lastActivity = projExpenses.length > 0 ? Math.max(...projExpenses.map(e => e.timestamp)) : 0;
@@ -1291,7 +1433,6 @@
                 let displayName = type === 'user' ? (state.users.find(u => u.id === val)?.username || 'Unknown User') : `${val} (Guest)`;
                 filterSelect.innerHTML += `<option value="${p}">${displayName}</option>`;
             });
-            // Reset filters on load
             filterSelect.value = 'all';
             document.getElementById('admin-expense-sort').value = 'recent';
         }
@@ -1318,12 +1459,14 @@
             const grandTotal = projExpenses.reduce((s,e)=>s+Number(e.amount),0);
             totalAmtEl.innerText = formatMoney(grandTotal);
 
+            // Generate Category Summary
+            document.getElementById('admin-category-summary').innerHTML = generateCategorySummaryHTML(projExpenses);
+
             if(projExpenses.length === 0) {
                 container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-soft"><i class="ph-fill ph-receipt text-4xl text-slate-300 mb-2 block"></i><p class="text-slate-500 font-medium text-sm">No expenses match criteria.</p></div>`;
                 return;
             }
 
-            // Map unique users to colors for this view
             const uniqueUsersMap = {};
             let colorIndex = 0;
             projExpenses.forEach(e => {
@@ -1342,7 +1485,6 @@
             let html = '';
 
             if (sortVal === 'user') {
-                // Group by User view
                 const grouped = {};
                 projExpenses.forEach(e => {
                     const gName = e.guestName ? capitalize(e.guestName.trim()) : 'Unknown';
@@ -1355,7 +1497,6 @@
                     const userMeta = uniqueUsersMap[key];
                     const total = exps.reduce((s,e)=>s+Number(e.amount),0);
                     
-                    // Sort descending within user
                     exps.sort((a,b) => b.timestamp - a.timestamp);
                     
                     html += `
@@ -1390,7 +1531,6 @@
                     </div>`;
                 }
             } else {
-                // Flat List view
                 if (sortVal === 'recent') projExpenses.sort((a, b) => b.timestamp - a.timestamp);
                 else if (sortVal === 'oldest') projExpenses.sort((a, b) => a.timestamp - b.timestamp);
                 else if (sortVal === 'amount_high') projExpenses.sort((a, b) => b.amount - a.amount);
@@ -1463,7 +1603,6 @@
             document.getElementById('user-header-title').innerText = 'Select Month';
             document.getElementById('user-header-subtitle').innerText = 'Welcome, ' + state.currentUser.username;
             
-            // Allow all users to see all active project months
             let uniqueMonths = [...new Set(state.projects.map(p => p.month))].sort().reverse();
             
             const container = document.getElementById('user-view-months');
@@ -1489,7 +1628,6 @@
             document.getElementById('user-header-title').innerText = formatMonth(month);
             document.getElementById('user-header-subtitle').innerText = 'Select Work';
 
-            // Allow all users to see all works for the selected month
             let works = state.projects.filter(p => p.month === month);
             
             const container = document.getElementById('works-list-container');
@@ -1521,6 +1659,9 @@
             document.getElementById('tracker-spent').innerText = formatMoney(totalSpent);
             document.getElementById('tracker-count').innerText = `${myExpenses.length} items`;
 
+            // Category Summary
+            document.getElementById('user-category-summary').innerHTML = generateCategorySummaryHTML(myExpenses);
+
             const balanceContainer = document.getElementById('tracker-balance-container');
             if (state.isGuest) {
                 document.getElementById('tracker-spent-label').innerText = "Guest Total Added";
@@ -1536,9 +1677,8 @@
                 const settledExcess = allocation ? Number(allocation.settledExcess || 0) : 0;
                 const balance = (allocatedAmt + settledExcess) - totalSpent;
 
-                // Show badge if user is tracking expenses in a project they weren't allocated to
                 if (!allocation) {
-                    document.getElementById('tracker-allocated').innerHTML = `<span class="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Not Allocated</span>`;
+                    document.getElementById('tracker-allocated').innerHTML = `<span class="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Set Budget</span>`;
                 } else {
                     document.getElementById('tracker-allocated').innerText = `₹${formatMoney(allocatedAmt)}` + (settledExcess > 0 ? ` (+₹${formatMoney(settledExcess)})` : '');
                 }
@@ -1617,7 +1757,6 @@
             const exp = state.expenses.find(e => e.id === expId);
             if(!exp) return;
             
-            // Security check: Only admins or the owner can edit
             if (state.currentUser.role !== 'admin' && exp.userId !== state.currentUser.id) {
                  return showToast("You can only edit your own entries.", "error");
             }
@@ -1628,7 +1767,6 @@
             const categoryInput = document.querySelector(`input[name="category"][value="${exp.category}"]`);
             if(categoryInput) categoryInput.checked = true;
             
-            // If admin is editing, we show guest field if it belongs to a guest
             if (exp.userId === 'guest_user') {
                 document.getElementById('guest-name-container').classList.remove('view-hidden');
                 document.getElementById('expense-guest-name').required = true;
@@ -1656,13 +1794,12 @@
                     const { error } = await supabase.from('exp_expenses').delete().eq('id', id);
                     if(error) throw error;
                     
-                    // Optimistic delete
                     state.expenses = state.expenses.filter(e => e.id !== id);
                     if(state.editingExpenseId === id) closeExpenseModal();
                     updateUIBasedOnRole();
                     showToast("Expense deleted.");
                     
-                    await fetchAllData(); // background sync
+                    await fetchAllData();
                 } catch(e) {
                     console.error(e);
                     showToast("Error deleting expense.", "error");
@@ -1752,7 +1889,6 @@
             const originalText = document.getElementById('submit-btn-text').innerText;
             document.getElementById('submit-btn-text').innerHTML = `<i class="ph-bold ph-spinner animate-spin"></i> Saving...`;
 
-            // Optimistic UI Update function
             const optimisticUpdate = () => {
                 const tempExp = {
                     id: state.editingExpenseId || ('temp-' + Date.now()),
@@ -1772,13 +1908,13 @@
                     state.expenses.unshift(tempExp);
                 }
                 
-                updateUIBasedOnRole(); // Instant Forced UI Refresh
+                updateUIBasedOnRole(); 
                 closeExpenseModal();
             };
 
             try {
                 if (!navigator.onLine) {
-                    throw new Error("Offline"); // Force catch block if device knows it's offline
+                    throw new Error("Offline"); 
                 }
 
                 if (state.editingExpenseId) {
@@ -1792,12 +1928,11 @@
                 }
                 
                 optimisticUpdate();
-                await fetchAllData(); // Background real-sync
+                await fetchAllData();
                 
             } catch (error) {
                 console.error("Save Error:", error);
                 
-                // Fallback to offline queue on network issues
                 if (!navigator.onLine || error.message === 'Offline' || String(error).includes('fetch') || String(error).includes('NetworkError')) {
                     if (state.editingExpenseId) {
                         saveToOfflineQueue('update', 'exp_expenses', expenseData, state.editingExpenseId);
