@@ -1498,7 +1498,35 @@
                 keys.forEach(key => {
                     const p = participants[key];
                     p.name = !p.isGuest ? (state.users.find(u => u.id === p.id)?.username || 'Unknown User') : `${capitalize(p.guestName||'Unknown')} (Guest)`;
-                    const balance = (p.allocated + p.settled) - p.spent;
+                    
+                    // --- Vault Integration Logic ---
+                    const rawProjectBalance = (p.allocated + p.settled) - p.spent;
+                    
+                    // 1. Calculate how much Vault money they have globally
+                    const vaultAllocs = state.allocations.filter(a => a.userId === p.id && a.projectId === VAULT_ID);
+                    const vaultTotalIn = vaultAllocs.reduce((sum, a) => sum + Number(a.amount), 0);
+                    
+                    // 2. Calculate how much Vault money is already eaten up by OTHER projects' deficits
+                    let vaultUsedByOther = 0;
+                    const otherProjectIds = [...new Set(state.expenses.filter(e => e.userId === p.id && e.projectId !== proj.id).map(e => e.projectId))];
+                    otherProjectIds.forEach(pid => {
+                        const opAlloc = state.allocations.filter(a => a.userId === p.id && a.projectId === pid).reduce((sum, a) => sum + Number(a.amount) + Number(a.settledExcess || 0), 0);
+                        const opSpent = state.expenses.filter(e => e.userId === p.id && e.projectId === pid).reduce((sum, e) => sum + Number(e.amount), 0);
+                        if (opSpent > opAlloc) vaultUsedByOther += (opSpent - opAlloc);
+                    });
+                    
+                    // 3. Whatever is left in the vault is available to offset THIS project
+                    const vaultAvailable = Math.max(0, vaultTotalIn - vaultUsedByOther);
+                    let balance = rawProjectBalance;
+                    let offsetApplied = 0;
+                    
+                    // 4. If this project is in a deficit, auto-apply the vault money
+                    if (balance < 0) {
+                        offsetApplied = Math.min(Math.abs(balance), vaultAvailable);
+                        balance += vaultAvailable;
+                        if (balance > 0) balance = 0; 
+                    }
+
                     const isExcess = balance < 0;
 
                     html += `
@@ -1511,6 +1539,7 @@
                                 <div class="text-right flex flex-col items-end">
                                     <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Balance</p>
                                     <p class="font-extrabold text-base ${isExcess ? 'text-red-500' : 'text-emerald-500'}">${isExcess ? '-' : ''}₹${formatMoney(Math.abs(balance))}</p>
+                                    ${offsetApplied > 0 ? `<p class="text-[9px] text-brand-500 font-bold mt-0.5">+₹${formatMoney(offsetApplied)} from Vault</p>` : ''}
                                     ${isExcess ? `<button onclick="settleUserBalance('${proj.id}', '${p.id}', '${p.guestName || ''}', ${Math.abs(balance)})" class="mt-1.5 text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2.5 py-1 rounded-full font-bold uppercase hover:bg-emerald-100 active:scale-95 transition-all shadow-sm flex items-center gap-1"><i class="ph-bold ph-check"></i> Settle</button>` : ''}
                                 </div>
                             </div>
