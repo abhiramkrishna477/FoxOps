@@ -228,11 +228,15 @@
                 <!-- Tab: Users -->
                 <div id="admin-tab-users" class="view-hidden space-y-6">
                     <div class="bg-white p-6 rounded-3xl shadow-soft border border-slate-100">
-                        <h3 class="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2"><i class="ph-fill ph-user-plus text-brand-500"></i> Add User</h3>
+                        <h3 class="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2" id="user-form-title"><i class="ph-fill ph-user-plus text-brand-500"></i> Add User</h3>
                         <div class="space-y-3">
                             <input type="text" id="new-user-name" placeholder="Username" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
                             <input type="text" id="new-user-pwd" placeholder="Password" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
-                            <button onclick="saveUser()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all shadow-md">Save User</button>
+                            
+                            <div class="flex gap-2">
+                                <button type="button" id="cancel-edit-user-btn" onclick="cancelEditUser()" class="hidden w-1/3 bg-slate-100 text-slate-600 rounded-2xl py-4 font-bold hover:bg-slate-200 transition-all shadow-sm">Cancel</button>
+                                <button id="save-user-btn" onclick="saveUser()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all shadow-md">Save User</button>
+                            </div>
                         </div>
                     </div>
                     <div id="admin-users-list" class="space-y-3"></div>
@@ -284,33 +288,54 @@
                         </button>
                     </div>
 
+                    <!-- Redesigned Allocation Banner matching Image -->
                     <section class="mb-6" id="allocation-banner-section">
-                        <div class="bg-slate-950 rounded-[32px] p-6 text-white shadow-float relative overflow-hidden border border-slate-800">
-                            <div class="absolute -right-10 -top-10 w-40 h-40 bg-brand-500 rounded-full blur-[50px] opacity-20"></div>
-                            <div class="absolute -left-10 -bottom-10 w-40 h-40 bg-blue-500 rounded-full blur-[50px] opacity-10"></div>
+                        <div class="bg-[#0b1120] rounded-[32px] p-6 text-white shadow-float relative overflow-hidden border border-slate-800">
+                            <!-- Faint glow effects -->
+                            <div class="absolute -right-10 -top-10 w-40 h-40 bg-brand-500 rounded-full blur-[60px] opacity-10 pointer-events-none"></div>
                             
                             <div class="relative z-10">
-                                <p class="text-slate-400 text-sm font-medium mb-1" id="tracker-spent-label">Spent on this Project</p>
-                                <h2 class="text-4xl font-extrabold mb-6 flex items-baseline gap-1 tracking-tight">
+                                <div class="flex justify-between items-center mb-2">
+                                    <p class="text-slate-400 text-sm font-medium" id="tracker-spent-label">Spent on this Project</p>
+                                    
+                                    <!-- Toggle for Project Fund -->
+                                    <label id="project-fund-toggle-container" class="flex items-center cursor-pointer gap-2">
+                                        <span class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Separate Fund</span>
+                                        <div class="relative flex items-center">
+                                            <input type="checkbox" id="toggle-project-fund" class="peer sr-only" onchange="toggleProjectFundView()" checked>
+                                            <div class="block bg-slate-800 w-8 h-4.5 rounded-full border border-slate-700 peer-checked:bg-brand-500 transition-colors"></div>
+                                            <div class="absolute left-[2px] top-[2px] bg-white w-3.5 h-3.5 rounded-full transition-transform peer-checked:translate-x-3.5 shadow-sm"></div>
+                                        </div>
+                                    </label>
+                                </div>
+                                
+                                <h2 class="text-[40px] font-extrabold mb-6 flex items-baseline gap-1 tracking-tight leading-none">
                                     <span class="text-2xl text-slate-500 font-bold">₹</span>
                                     <span id="tracker-spent">0</span>
                                 </h2>
                                 
-                                <div class="flex gap-3" id="tracker-balance-container">
-                                    <!-- Editable Vault Block -->
-                                    <div class="bg-slate-900/80 rounded-2xl p-3.5 flex-1 border border-slate-800/80 backdrop-blur-md relative group cursor-pointer" onclick="openSelfAllocModal()">
-                                        <div class="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity"></div>
-                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
-                                            <span class="flex items-center gap-1"><i class="ph-bold ph-vault"></i> My Vault</span>
-                                            <i class="ph-bold ph-pencil-simple text-slate-500 group-hover:text-brand-300 transition-colors"></i>
+                                <div class="flex gap-3 mb-5" id="tracker-balance-container">
+                                    <!-- Project Fund Card -->
+                                    <div class="bg-[#1a202c] rounded-2xl p-4 flex-1 border border-slate-700/50 transition-all" id="tracker-proj-bal-card">
+                                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                            <i class="ph-bold ph-folder"></i> Project Fund
                                         </p>
-                                        <p class="font-bold text-base relative z-10" id="tracker-allocated">₹0</p>
+                                        <p class="font-bold text-xl" id="tracker-proj-balance">₹0</p>
                                     </div>
-                                    <div class="bg-brand-900/40 rounded-2xl p-3.5 flex-1 border border-brand-500/30 backdrop-blur-md transition-colors duration-300" id="tracker-balance-card">
-                                        <p class="text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-1 flex items-center gap-1" id="tracker-balance-label"><i class="ph-bold ph-chart-line-up"></i> Vault Balance</p>
-                                        <p class="font-bold text-base text-brand-50" id="tracker-balance">₹0</p>
+                                    
+                                    <!-- Common Fund Card -->
+                                    <div class="bg-[#0f2926] rounded-2xl p-4 flex-1 border border-brand-900/50 transition-all" id="tracker-common-bal-card">
+                                        <p class="text-[10px] font-bold text-brand-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+                                            <i class="ph-bold ph-vault"></i> Common Fund
+                                        </p>
+                                        <p class="font-bold text-xl text-brand-50" id="tracker-common-balance">₹0</p>
                                     </div>
                                 </div>
+                                
+                                <!-- Manage Funds Button -->
+                                <button onclick="openSelfAllocModal()" id="tracker-manage-funds-btn" class="w-full bg-[#1e2536] hover:bg-[#273045] active:scale-[0.98] text-white rounded-xl py-3.5 font-bold text-sm transition-all flex justify-center items-center gap-2 border border-slate-700/50 shadow-sm">
+                                    <i class="ph-bold ph-plus-minus"></i> Manage Funds
+                                </button>
                             </div>
                         </div>
                     </section>
@@ -506,10 +531,15 @@
             <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity opacity-0" id="self-alloc-backdrop" onclick="closeSelfAllocModal()"></div>
             <div class="bg-white p-6 rounded-3xl shadow-2xl relative z-10 w-full max-w-[320px] transform scale-95 opacity-0 transition-all duration-300" id="self-alloc-content">
                 <div class="flex justify-between items-center mb-5">
-                    <h3 class="text-xl font-bold text-slate-800 tracking-tight" id="self-alloc-title">Manage My Vault</h3>
+                    <h3 class="text-xl font-bold text-slate-800 tracking-tight" id="self-alloc-title">Manage Funds</h3>
                     <button onclick="closeSelfAllocModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"><i class="ph-bold ph-x"></i></button>
                 </div>
                 
+                <div class="mb-4">
+                    <label class="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase tracking-wider">Select Target</label>
+                    <select id="self-alloc-target" class="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-800 focus:outline-none focus:border-brand-500 transition-all"></select>
+                </div>
+
                 <div class="flex gap-2 mb-4">
                     <label class="flex-1 cursor-pointer">
                         <input type="radio" name="alloc-action" id="alloc-action-add" value="add" class="peer hidden" checked>
@@ -569,7 +599,7 @@
         <!-- Toast Notification Container -->
         <div id="toast-container" class="absolute top-6 left-0 right-0 z-[110] flex flex-col items-center gap-2 pointer-events-none px-4"></div>
 
-    </div> <!-- End App Container -->
+    </div>
 
     <script>
         // Supabase Credentials
@@ -641,6 +671,31 @@
         }
         function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase(); }
 
+        // --- NEW FUND MATH HELPER ---
+        function calculateCommonFundBalance(userId) {
+            const vaultAllocs = state.allocations.filter(a => a.userId === userId && a.projectId === VAULT_ID);
+            const totalVaultIn = vaultAllocs.reduce((sum, a) => sum + Number(a.amount), 0);
+
+            let totalDrawnFromCommon = 0;
+            const uniqueProjects = [...new Set(state.expenses.filter(e => e.userId === userId).map(e => e.projectId))];
+            
+            uniqueProjects.forEach(pid => {
+                const pAllocs = state.allocations.filter(a => a.userId === userId && a.projectId === pid).reduce((sum, a) => sum + Number(a.amount), 0);
+                const pSpent = state.expenses.filter(e => e.userId === userId && e.projectId === pid).reduce((sum, e) => sum + Number(e.amount), 0);
+                
+                let isProjFundEnabled = true;
+                const stored = localStorage.getItem(`proj_fund_enabled_${pid}`);
+                if(stored === 'false') isProjFundEnabled = false;
+
+                if (!isProjFundEnabled) {
+                    totalDrawnFromCommon += pSpent; // All expenses draw from common if toggle is off
+                } else if (pSpent > pAllocs) {
+                    totalDrawnFromCommon += (pSpent - pAllocs); // Only excess expenses draw from common
+                }
+            });
+            return totalVaultIn - totalDrawnFromCommon;
+        }
+
         var confirmCallback = null;
         function openConfirmModal(title, text, callback) {
             document.getElementById('confirm-title').innerText = title;
@@ -661,7 +716,6 @@
             setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); confirmCallback = null; }, 300);
         }
 
-        // Category Summary Helper
         function generateCategorySummaryHTML(expensesToSummarize) {
             if (!expensesToSummarize || expensesToSummarize.length === 0) return '';
             const summaryMap = {};
@@ -706,8 +760,7 @@
                     let ts = row.created_at ? new Date(row.created_at).getTime() : Date.now();
                     let gName = row.guest_name;
                     
-                    // Decode the date if it's packed into the guest_name column (for Vault items)
-                    if (row.project_id === VAULT_ID && gName && gName.includes('||')) {
+                    if (gName && gName.includes('||')) {
                         const parts = gName.split('||');
                         const parsedDate = new Date(parts[0]);
                         if (!isNaN(parsedDate.getTime())) {
@@ -748,7 +801,6 @@
                 }
             }
 
-            // Ensure Vault Pseudo-Project exists to satisfy foreign key constraints
             if (!state.projects.find(p => p.id === VAULT_ID)) {
                 const vaultData = { id: VAULT_ID, name: 'Global Vault Storage', month: '2000-01' };
                 const { error } = await supabase.from('exp_projects').insert(vaultData);
@@ -792,7 +844,7 @@
             state.currentUser = { id: 'guest_user', username: 'Guest', role: 'guest' };
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('user-screen').classList.remove('view-hidden');
-            document.getElementById('user-avatar').innerHTML = '<i class="ph-bold ph-user"></i>';
+            document.getElementById('user-avatar').innerHTML = '<i class="ph-bold ph-user-circle"></i>';
             renderUserMonths();
         }
 
@@ -812,9 +864,23 @@
             if (state.isGuest) return showToast("Guests cannot set their own budget.", "warning");
             state.editingAllocId = allocId;
 
+            const targetSelect = document.getElementById('self-alloc-target');
+            targetSelect.innerHTML = `<option value="${VAULT_ID}">Common Fund (Vault)</option>`;
+            
+            let isProjectFundEnabled = false;
+            const toggleEl = document.getElementById('toggle-project-fund');
+            if(state.activeWorkId && toggleEl) isProjectFundEnabled = toggleEl.checked;
+            
+            if (state.activeWorkId && isProjectFundEnabled) {
+                const proj = state.projects.find(p => p.id === state.activeWorkId);
+                if (proj) targetSelect.innerHTML += `<option value="${proj.id}">Project: ${proj.name}</option>`;
+            }
+
             if (allocId) {
                 const alloc = state.allocations.find(a => a.id === allocId);
                 if (!alloc) return;
+                targetSelect.value = alloc.projectId;
+                targetSelect.disabled = true; // Lock target when editing
                 document.getElementById('self-alloc-amount').value = Math.abs(alloc.amount);
                 document.getElementById('self-alloc-reason').value = alloc.guestName || '';
                 
@@ -827,18 +893,21 @@
                 } else {
                     document.getElementById('alloc-action-add').checked = true;
                 }
-                document.getElementById('self-alloc-title').innerText = 'Edit Vault Entry';
+                document.getElementById('self-alloc-title').innerText = 'Edit Funds';
                 document.getElementById('delete-alloc-btn').classList.remove('hidden');
             } else {
                 document.getElementById('self-alloc-amount').value = '';
                 document.getElementById('self-alloc-reason').value = '';
+                
+                if(targetSelect) targetSelect.disabled = false;
+                if (state.activeWorkId && isProjectFundEnabled) targetSelect.value = state.activeWorkId;
                 
                 const today = new Date();
                 const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
                 document.getElementById('self-alloc-date').value = localDate;
 
                 document.getElementById('alloc-action-add').checked = true;
-                document.getElementById('self-alloc-title').innerText = 'Manage My Vault';
+                document.getElementById('self-alloc-title').innerText = 'Manage Funds';
                 document.getElementById('delete-alloc-btn').classList.add('hidden');
             }
 
@@ -879,13 +948,14 @@
             const finalReason = reasonStr || (isAdd ? 'Added Funds' : 'Subtracted Funds');
             const encodedReason = `${dateObj.toISOString()}||${finalReason}`;
             
+            const targetProjectId = document.getElementById('self-alloc-target').value;
+            
             const newAllocation = {
                 user_id: userId,
-                project_id: VAULT_ID,
+                project_id: targetProjectId,
                 amount: amtToChange,
                 settled_excess: 0,
                 guest_name: encodedReason // Store date and reason together
-                // Note: created_at has been removed to fix the PGRST204 error
             };
 
             closeSelfAllocModal();
@@ -894,31 +964,49 @@
                 if (state.editingAllocId) {
                     const { error } = await supabase.from('exp_allocations').update(newAllocation).eq('id', state.editingAllocId);
                     if (error) throw error;
-                    showToast("Vault entry updated");
+                    showToast("Funds updated");
                 } else {
                     const { error } = await supabase.from('exp_allocations').insert(newAllocation);
                     if (error) throw error;
-                    showToast("Vault updated successfully");
+                    showToast("Funds updated successfully");
                 }
                 await fetchAllData();
             } catch (e) {
                 console.error(e);
-                showToast("Error updating vault", "error");
+                showToast("Error updating funds", "error");
                 await fetchAllData(); 
             }
         }
 
         window.deleteSelfAllocation = function() {
             if (!state.editingAllocId) return;
-            openConfirmModal("Delete Vault Entry", "Are you sure you want to permanently delete this entry?", async () => {
+            openConfirmModal("Delete Fund Entry", "Are you sure you want to permanently delete this entry?", async () => {
                 try {
                     const { error } = await supabase.from('exp_allocations').delete().eq('id', state.editingAllocId);
                     if(error) throw error;
                     closeSelfAllocModal();
-                    showToast("Vault entry deleted.");
+                    showToast("Fund entry deleted.");
                     await fetchAllData();
                 } catch(e) { console.error(e); showToast("Error deleting entry.", "error"); }
             });
+        }
+
+        window.toggleProjectFundView = function() {
+            const isChecked = document.getElementById('toggle-project-fund').checked;
+            if(state.activeWorkId) {
+                localStorage.setItem(`proj_fund_enabled_${state.activeWorkId}`, isChecked);
+            }
+            applyProjectFundToggle();
+            renderUserTracker(); 
+        }
+
+        function applyProjectFundToggle() {
+            const isChecked = document.getElementById('toggle-project-fund').checked;
+            const projCard = document.getElementById('tracker-proj-bal-card');
+            if(projCard) {
+                if (isChecked) projCard.classList.remove('hidden');
+                else projCard.classList.add('hidden');
+            }
         }
 
         window.openUserVaultView = function() {
@@ -943,10 +1031,7 @@
             if (!state.currentUser || state.isGuest) return;
 
             const myVaultAllocs = state.allocations.filter(a => a.userId === state.currentUser.id && a.projectId === VAULT_ID);
-            const vaultTotalAllocated = myVaultAllocs.reduce((sum, a) => sum + Number(a.amount), 0);
-            const allMyExpenses = state.expenses.filter(e => e.userId === state.currentUser.id);
-            const vaultTotalSpent = allMyExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-            const globalBalance = vaultTotalAllocated - vaultTotalSpent;
+            const globalBalance = calculateCommonFundBalance(state.currentUser.id);
 
             const balanceEl = document.getElementById('vault-view-balance');
             if (globalBalance < 0) {
@@ -1058,7 +1143,7 @@
             `).join('');
         }
 
-        function renderUserTracker() {
+        window.renderUserTracker = function() {
             const project = state.projects.find(p => p.id === state.activeWorkId);
             if(!project) return;
             document.getElementById('user-header-title').innerText = project.name;
@@ -1071,45 +1156,48 @@
             document.getElementById('user-category-summary').innerHTML = generateCategorySummaryHTML(myExpenses);
 
             const balanceContainer = document.getElementById('tracker-balance-container');
+            const toggleContainer = document.getElementById('project-fund-toggle-container');
+            const manageBtn = document.getElementById('tracker-manage-funds-btn');
+            
             if (state.isGuest) {
                 document.getElementById('tracker-spent-label').innerText = "Guest Total Added";
                 balanceContainer.classList.add('hidden');
+                toggleContainer.classList.add('hidden');
+                if(manageBtn) manageBtn.classList.add('hidden');
                 document.getElementById('expenses-list-title').innerText = "Your Expenses";
             } else {
                 document.getElementById('tracker-spent-label').innerText = "Spent on this Project";
                 balanceContainer.classList.remove('hidden');
+                toggleContainer.classList.remove('hidden');
+                if(manageBtn) manageBtn.classList.remove('hidden');
                 document.getElementById('expenses-list-title').innerText = "My Expenses";
                 
-                const vaultAllocations = state.allocations.filter(a => a.userId === state.currentUser.id && a.projectId === VAULT_ID);
-                const vaultTotalAllocated = vaultAllocations.reduce((sum, a) => sum + Number(a.amount), 0);
-                
-                const allMyExpenses = state.expenses.filter(e => e.userId === state.currentUser.id);
-                const vaultTotalSpent = allMyExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
-                
-                const globalBalance = vaultTotalAllocated - vaultTotalSpent;
-
-                if (vaultAllocations.length === 0) {
-                    document.getElementById('tracker-allocated').innerHTML = `<span class="text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Set Budget</span>`;
+                // Restore toggle state
+                const storedToggle = localStorage.getItem(`proj_fund_enabled_${state.activeWorkId}`);
+                if (storedToggle !== null) {
+                    document.getElementById('toggle-project-fund').checked = storedToggle === 'true';
                 } else {
-                    document.getElementById('tracker-allocated').innerHTML = `₹${formatMoney(vaultTotalAllocated)}`;
+                    document.getElementById('toggle-project-fund').checked = true; // Default ON
                 }
-                
-                const balCard = document.getElementById('tracker-balance-card');
-                const balLabel = document.getElementById('tracker-balance-label');
-                const balText = document.getElementById('tracker-balance');
+                applyProjectFundToggle();
 
-                if (globalBalance < 0) {
-                    balCard.className = "bg-red-950/40 rounded-2xl p-3.5 flex-1 border border-red-500/30 backdrop-blur-md transition-colors duration-300";
-                    balLabel.innerHTML = `<i class="ph-bold ph-warning-circle"></i> Vault Excess`;
-                    balLabel.className = "text-[10px] font-bold uppercase tracking-wider text-red-300 mb-1 flex items-center gap-1";
-                    balText.className = "font-bold text-base text-red-100";
-                    balText.innerText = `-₹${formatMoney(Math.abs(globalBalance))}`;
-                } else {
-                    balCard.className = "bg-brand-900/40 rounded-2xl p-3.5 flex-1 border border-brand-500/30 backdrop-blur-md transition-colors duration-300";
-                    balLabel.innerHTML = `<i class="ph-bold ph-vault"></i> Vault Balance`;
-                    balLabel.className = "text-[10px] font-bold uppercase tracking-wider text-brand-300 mb-1 flex items-center gap-1";
-                    balText.className = "font-bold text-base text-brand-50";
-                    balText.innerText = `₹${formatMoney(globalBalance)}`;
+                // Calculate Project Balance
+                const myProjAllocations = state.allocations.filter(a => a.userId === state.currentUser.id && a.projectId === state.activeWorkId);
+                const totalProjAllocated = myProjAllocations.reduce((sum, a) => sum + Number(a.amount), 0);
+                const projBalance = totalProjAllocated - totalProjectSpent;
+                
+                const projBalEl = document.getElementById('tracker-proj-balance');
+                if (projBalEl) {
+                    if (projBalance < 0) projBalEl.innerHTML = `<span class="text-red-400">-₹${formatMoney(Math.abs(projBalance))}</span>`;
+                    else projBalEl.innerHTML = `₹${formatMoney(projBalance)}`;
+                }
+
+                // Calculate Common Fund Balance safely
+                const commonBalance = calculateCommonFundBalance(state.currentUser.id);
+                const commonBalEl = document.getElementById('tracker-common-balance');
+                if (commonBalEl) {
+                    if (commonBalance < 0) commonBalEl.innerHTML = `<span class="text-red-400">-₹${formatMoney(Math.abs(commonBalance))}</span>`;
+                    else commonBalEl.innerHTML = `₹${formatMoney(commonBalance)}`;
                 }
             }
 
@@ -1311,12 +1399,34 @@
             doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.text(`Total Project Expenses`, 125, 23);
             doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.text(`INR ${formatMoney(totalSpent)}`, 125, 33);
 
+            let startYForDetails = 55;
+
+            // Generate Tag Summary for PDF
+            const summaryMap = {};
+            myExpenses.forEach(e => {
+                if(!summaryMap[e.category]) summaryMap[e.category] = 0;
+                summaryMap[e.category] += Number(e.amount);
+            });
+            const summaryData = Object.keys(summaryMap).sort((a,b) => summaryMap[b]-summaryMap[a]).map(cat => [cat.toUpperCase(), `INR ${formatMoney(summaryMap[cat])}`]);
+
+            if(summaryData.length > 0) {
+                doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Expense Summary by Category", 14, startYForDetails);
+                doc.autoTable({
+                    startY: startYForDetails + 5, head: [['Category', 'Total Spent']], body: summaryData,
+                    theme: 'grid', headStyles: { fillColor: [71, 85, 105], textColor: 255, fontStyle: 'bold' },
+                    styles: { cellPadding: 3, fontSize: 9 },
+                    columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+                });
+                startYForDetails = doc.lastAutoTable.finalY + 15;
+            }
+
             const tableData = myExpenses.map(e => [
                 new Date(e.timestamp).toLocaleDateString(), e.category.toUpperCase(), e.desc, `INR ${formatMoney(e.amount)}`
             ]);
 
+            doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Detailed Expense Log", 14, startYForDetails);
             doc.autoTable({
-                startY: 55, head: [['Date', 'Category', 'Description', 'Amount']], body: tableData,
+                startY: startYForDetails + 5, head: [['Date', 'Category', 'Description', 'Amount']], body: tableData,
                 theme: 'grid', headStyles: { fillColor: [15, 118, 110], textColor: 255, fontStyle: 'bold' },
                 styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
                 columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } },
@@ -1419,6 +1529,26 @@
             doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.text(`Total Production Amount`, 125, 23);
             doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.setTextColor(45, 212, 191); doc.text(`INR ${formatMoney(totalSpent)}`, 125, 33);
             
+            let currentY = 55;
+
+            // Generate Tag Summary for PDF
+            const summaryMap = {};
+            projExpenses.forEach(e => {
+                if(!summaryMap[e.category]) summaryMap[e.category] = 0;
+                summaryMap[e.category] += Number(e.amount);
+            });
+            const summaryData = Object.keys(summaryMap).sort((a,b) => summaryMap[b]-summaryMap[a]).map(cat => [cat.toUpperCase(), `INR ${formatMoney(summaryMap[cat])}`]);
+
+            if(summaryData.length > 0) {
+                doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Expense Summary by Category", 14, currentY); currentY += 5;
+                doc.autoTable({
+                    startY: currentY, head: [['Category', 'Total Spent']], body: summaryData, theme: 'grid',
+                    headStyles: { fillColor: [71, 85, 105], textColor: 255 }, styles: { cellPadding: 3, fontSize: 9 },
+                    columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } }
+                });
+                currentY = doc.lastAutoTable.finalY + 15;
+            }
+            
             // User Summary
             const userSummary = {};
             projExpenses.forEach(e => {
@@ -1429,7 +1559,6 @@
             });
             
             const summaryTableData = Object.entries(userSummary).sort((a, b) => b[1] - a[1]).map(entry => [entry[0], `INR ${formatMoney(entry[1])}`]);
-            let currentY = 55;
             
             if(summaryTableData.length > 0) {
                 doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Expense Summary by Person", 14, currentY); currentY += 5;
@@ -1875,14 +2004,48 @@
             const container = document.getElementById('admin-users-list');
             if(!container) return;
             container.innerHTML = state.users.map(u => `
-                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center group">
                     <div>
                         <p class="font-bold text-slate-800">${u.username}</p>
                         <p class="text-xs text-slate-500 uppercase tracking-wider">${u.role}</p>
                     </div>
+                    ${u.role !== 'admin' ? `
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="editUser('${u.id}')" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-brand-500 hover:bg-brand-50 transition-colors"><i class="ph-bold ph-pencil-simple"></i></button>
+                        <button onclick="deleteUser('${u.id}')" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"><i class="ph-bold ph-trash"></i></button>
+                    </div>` : ''}
                 </div>
             `).join('');
         };
+
+        window.editUser = function(id) {
+            const user = state.users.find(u => u.id === id);
+            if(!user || user.role === 'admin') return;
+            state.editingUserId = id;
+            
+            document.getElementById('new-user-name').value = user.username;
+            document.getElementById('new-user-pwd').value = user.password;
+            
+            document.getElementById('user-form-title').innerHTML = `<i class="ph-fill ph-pencil-simple text-brand-500"></i> Edit User`;
+            document.getElementById('save-user-btn').innerText = 'Update User';
+            document.getElementById('save-user-btn').classList.remove('w-full');
+            document.getElementById('save-user-btn').classList.add('flex-1');
+            document.getElementById('cancel-edit-user-btn').classList.remove('hidden');
+            
+            document.getElementById('admin-content').scrollTo({top: 0, behavior: 'smooth'});
+        }
+
+        window.cancelEditUser = function() {
+            state.editingUserId = null;
+            document.getElementById('new-user-name').value = '';
+            document.getElementById('new-user-pwd').value = '';
+            
+            document.getElementById('user-form-title').innerHTML = `<i class="ph-fill ph-user-plus text-brand-500"></i> Add User`;
+            document.getElementById('save-user-btn').innerText = 'Save User';
+            document.getElementById('save-user-btn').classList.add('w-full');
+            document.getElementById('save-user-btn').classList.remove('flex-1');
+            document.getElementById('cancel-edit-user-btn').classList.add('hidden');
+        }
 
         window.saveUser = async function() {
             const username = document.getElementById('new-user-name').value.trim();
@@ -1890,18 +2053,35 @@
             if(!username || !pwd) return showToast('Fill all fields', 'error');
 
             try {
-                const { error } = await supabase.from('exp_users').insert({ username, password: pwd, role: 'user' });
-                if(error) throw error;
-                showToast('User created');
-                document.getElementById('new-user-name').value = '';
-                document.getElementById('new-user-pwd').value = '';
+                if (state.editingUserId) {
+                    const { error } = await supabase.from('exp_users').update({ username, password: pwd }).eq('id', state.editingUserId);
+                    if(error) throw error;
+                    showToast('User updated');
+                } else {
+                    const { error } = await supabase.from('exp_users').insert({ username, password: pwd, role: 'user' });
+                    if(error) throw error;
+                    showToast('User created');
+                }
+                cancelEditUser();
                 await fetchAllData();
                 renderAdminUsersList();
             } catch(e) {
                 console.error(e);
-                showToast('Error creating user', 'error');
+                showToast('Error saving user', 'error');
             }
         };
+
+        window.deleteUser = function(id) {
+            openConfirmModal("Delete User", "Are you sure you want to permanently delete this user? Their expenses will remain.", async () => {
+                try {
+                    const { error } = await supabase.from('exp_users').delete().eq('id', id);
+                    if(error) throw error;
+                    if(state.editingUserId === id) cancelEditUser();
+                    showToast("User deleted.");
+                    await fetchAllData();
+                } catch(e) { console.error(e); showToast("Error deleting user.", "error"); }
+            });
+        }
 
         window.showToast = function(message, type = 'success') {
             const container = document.getElementById('toast-container');
