@@ -311,8 +311,8 @@
                                         <p class="font-bold text-base text-white" id="tracker-proj-balance">₹0</p>
                                     </div>
                                     
-                                    <!-- Common Fund Block -->
-                                    <div class="bg-brand-950/40 rounded-2xl p-3.5 flex-1 border border-brand-900/50 backdrop-blur-md relative group cursor-pointer transition-colors hover:bg-brand-900/60" onclick="openSelfAllocModal('vault')">
+                                    <!-- Common Fund Block (No longer clickable inside project) -->
+                                    <div class="bg-brand-950/40 rounded-2xl p-3.5 flex-1 border border-brand-900/50 backdrop-blur-md relative group transition-colors">
                                         <div class="flex justify-between items-center mb-1">
                                             <p class="text-[10px] font-bold text-brand-300 uppercase tracking-wider flex items-center gap-1">
                                                 <i class="ph-bold ph-money"></i> Common Fund
@@ -321,10 +321,6 @@
                                         <p class="font-bold text-base text-brand-50" id="tracker-common-balance">₹0</p>
                                     </div>
                                 </div>
-
-                                <button id="tracker-manage-funds-btn" onclick="openSelfAllocModal('vault')" class="w-full mt-4 bg-slate-800/80 hover:bg-slate-700 text-white rounded-xl py-3 text-sm font-bold transition-colors flex items-center justify-center gap-2 border border-slate-700">
-                                    <i class="ph-bold ph-plus-minus"></i> Manage Funds
-                                </button>
                             </div>
                         </div>
                     </section>
@@ -532,7 +528,7 @@
                     <button onclick="closeSelfAllocModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"><i class="ph-bold ph-x"></i></button>
                 </div>
                 
-                <div class="mb-4" id="alloc-target-selector-container">
+                <div class="mb-4 hidden" id="alloc-target-selector-container">
                     <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Target Fund</label>
                     <select id="self-alloc-target" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
                         <option value="vault">Common Fund</option>
@@ -854,10 +850,7 @@
             else if (targetType === 'project') targetSelector.value = 'project';
 
             if (!state.activeWorkId) {
-                document.getElementById('alloc-target-selector-container').classList.add('hidden');
                 targetSelector.value = 'vault';
-            } else {
-                document.getElementById('alloc-target-selector-container').classList.remove('hidden');
             }
             
             if (allocId) {
@@ -989,12 +982,10 @@
             if (state.isGuest) {
                 document.getElementById('tracker-spent-label').innerText = "Guest Total Added";
                 balanceContainer.classList.add('hidden');
-                document.getElementById('tracker-manage-funds-btn').classList.add('hidden');
                 document.getElementById('project-fund-history-section').classList.add('view-hidden');
             } else {
                 document.getElementById('tracker-spent-label').innerText = "Spent on this Project";
                 balanceContainer.classList.remove('hidden');
-                document.getElementById('tracker-manage-funds-btn').classList.remove('hidden');
                 document.getElementById('project-fund-history-section').classList.remove('view-hidden');
                 
                 // Common Fund Calculation
@@ -1904,6 +1895,9 @@
             
             const myExpenses = state.expenses.filter(e => e.userId === state.currentUser.id && e.projectId === state.activeWorkId);
             const totalSpent = myExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+            const myProjAllocations = state.allocations.filter(a => a.userId === state.currentUser.id && a.projectId === state.activeWorkId);
+            const totalIncoming = myProjAllocations.reduce((sum, a) => sum + Number(a.amount), 0);
+            const balance = totalIncoming - totalSpent;
             
             doc.setFillColor(248, 250, 252); doc.rect(0, 0, 210, 50, 'F');
             doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(30, 41, 59);
@@ -1914,11 +1908,36 @@
             doc.text(`User: ${state.currentUser.username}`, 14, 38);
             doc.text(`Date Generated: ${new Date().toLocaleDateString()}`, 14, 44);
             
-            doc.setFillColor(20, 184, 166); doc.roundedRect(120, 15, 75, 25, 3, 3, 'F');
-            doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.text(`Total Project Expenses`, 125, 23);
-            doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.text(`INR ${formatMoney(totalSpent)}`, 125, 33);
+            doc.setFillColor(241, 245, 249); doc.roundedRect(14, 50, 182, 22, 3, 3, 'F');
+            doc.setTextColor(51, 65, 85); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+            doc.text("Total Incoming", 20, 58);
+            doc.text("Total Outgoing", 80, 58);
+            doc.text("Balance", 140, 58);
 
-            let startYForDetails = 55;
+            doc.setFontSize(14);
+            doc.setTextColor(16, 185, 129); doc.text(`INR ${formatMoney(totalIncoming)}`, 20, 66);
+            doc.setTextColor(239, 68, 68); doc.text(`INR ${formatMoney(totalSpent)}`, 80, 66);
+            doc.setTextColor(balance < 0 ? 239 : 15, balance < 0 ? 68 : 118, balance < 0 ? 68 : 110);
+            doc.text(`INR ${formatMoney(balance)}`, 140, 66);
+
+            let startYForDetails = 80;
+
+            const fundData = myProjAllocations.sort((a,b) => a.timestamp - b.timestamp).map(a => [
+                new Date(a.timestamp).toLocaleDateString(),
+                a.amount > 0 ? 'Added' : 'Subtracted',
+                a.guestName || (a.amount > 0 ? 'Fund Added' : 'Fund Subtracted'),
+                `INR ${formatMoney(Math.abs(a.amount))}`
+            ]);
+
+            if(fundData.length > 0) {
+                doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Fund History", 14, startYForDetails);
+                doc.autoTable({
+                    startY: startYForDetails + 5, head: [['Date', 'Type', 'Description', 'Amount']], body: fundData,
+                    theme: 'grid', headStyles: { fillColor: [71, 85, 105], textColor: 255 }, styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                    columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
+                });
+                startYForDetails = doc.lastAutoTable.finalY + 15;
+            }
 
             const summaryMap = {};
             myExpenses.forEach(e => {
@@ -2032,12 +2051,19 @@
             if(!project) return;
             
             let projExpenses = state.expenses.filter(e => e.projectId === projId);
+            let projAllocs = state.allocations.filter(a => a.projectId === projId);
             const filterVal = document.getElementById('admin-expense-filter-person').value;
             
             if(filterVal !== 'all') {
                 const [type, val] = filterVal.split('|');
-                if(type === 'user') projExpenses = projExpenses.filter(e => e.userId === val);
-                if(type === 'guest') projExpenses = projExpenses.filter(e => e.userId === 'guest_user' && capitalize(e.guestName||'Unknown') === val);
+                if(type === 'user') {
+                    projExpenses = projExpenses.filter(e => e.userId === val);
+                    projAllocs = projAllocs.filter(a => a.userId === val);
+                }
+                if(type === 'guest') {
+                    projExpenses = projExpenses.filter(e => e.userId === 'guest_user' && capitalize(e.guestName||'Unknown') === val);
+                    projAllocs = projAllocs.filter(a => a.userId === 'guest_user' && capitalize(a.guestName||'Unknown') === val);
+                }
             }
             
             doc.setFillColor(248, 250, 252); doc.rect(0, 0, 210, 50, 'F');
@@ -2050,12 +2076,45 @@
             doc.text(`Date Generated: ${new Date().toLocaleDateString()}`, 14, 44);
             
             const totalSpent = projExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+            const totalIncoming = projAllocs.reduce((sum, a) => sum + Number(a.amount) + Number(a.settledExcess || 0), 0);
+            const balance = totalIncoming - totalSpent;
             
-            doc.setFillColor(15, 23, 42); doc.roundedRect(120, 15, 75, 25, 3, 3, 'F');
-            doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.text(`Total Production Amount`, 125, 23);
-            doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.setTextColor(45, 212, 191); doc.text(`INR ${formatMoney(totalSpent)}`, 125, 33);
+            doc.setFillColor(241, 245, 249); doc.roundedRect(14, 50, 182, 22, 3, 3, 'F');
+            doc.setTextColor(51, 65, 85); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+            doc.text("Total Incoming", 20, 58);
+            doc.text("Total Outgoing", 80, 58);
+            doc.text("Balance", 140, 58);
+
+            doc.setFontSize(14);
+            doc.setTextColor(16, 185, 129); doc.text(`INR ${formatMoney(totalIncoming)}`, 20, 66);
+            doc.setTextColor(239, 68, 68); doc.text(`INR ${formatMoney(totalSpent)}`, 80, 66);
+            doc.setTextColor(balance < 0 ? 239 : 15, balance < 0 ? 68 : 118, balance < 0 ? 68 : 110);
+            doc.text(`INR ${formatMoney(balance)}`, 140, 66);
             
-            let currentY = 55;
+            let currentY = 80;
+
+            const fundData = projAllocs.sort((a,b) => a.timestamp - b.timestamp).map(a => {
+                const isAdd = a.amount > 0 || a.settledExcess > 0;
+                const amt = a.amount !== 0 ? Math.abs(a.amount) : a.settledExcess;
+                const personName = a.userId === 'guest_user' ? `Guest: ${capitalize(a.guestName||'Unknown')}` : (state.users.find(u => u.id === a.userId)?.username || 'Unknown');
+                return [
+                    new Date(a.timestamp).toLocaleDateString(),
+                    personName,
+                    a.amount === 0 ? 'Settled' : (isAdd ? 'Added' : 'Subtracted'),
+                    a.amount === 0 ? 'Balance Settled' : (a.guestName || (isAdd ? 'Fund Added' : 'Fund Subtracted')),
+                    `INR ${formatMoney(amt)}`
+                ];
+            });
+
+            if(fundData.length > 0) {
+                doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Fund History", 14, currentY); currentY += 5;
+                doc.autoTable({
+                    startY: currentY, head: [['Date', 'Person', 'Type', 'Description', 'Amount']], body: fundData, theme: 'grid',
+                    headStyles: { fillColor: [71, 85, 105], textColor: 255 }, styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                    columnStyles: { 4: { halign: 'right', fontStyle: 'bold' } }
+                });
+                currentY = doc.lastAutoTable.finalY + 15;
+            }
 
             const summaryMap = {};
             projExpenses.forEach(e => {
