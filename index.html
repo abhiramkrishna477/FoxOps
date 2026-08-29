@@ -1,0 +1,2199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Production Expense Tracker</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 
+                            400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 
+                            800: '#115e59', 900: '#134e4a',
+                        }
+                    },
+                    boxShadow: {
+                        'soft': '0 8px 30px rgb(0, 0, 0, 0.04)',
+                        'float': '0 10px 40px rgb(0, 0, 0, 0.08)'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .view-hidden { display: none !important; }
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .modal-enter { transform: translateY(100%); opacity: 0; }
+        .modal-enter-active { transform: translateY(0); opacity: 1; transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .modal-exit { transform: translateY(100%); opacity: 0; transition: all 0.3s ease-in; }
+
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        .glass-dark { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+    </style>
+</head>
+
+<body class="bg-slate-200 h-screen w-screen flex flex-col items-center justify-center sm:p-4 font-sans antialiased text-slate-900 selection:bg-brand-400 selection:text-white">
+
+    <div id="app-container" class="w-full h-full max-w-[420px] bg-slate-50 relative overflow-hidden flex flex-col shadow-2xl sm:rounded-[40px] sm:h-[90vh] sm:border-[8px] sm:border-slate-800 ring-1 ring-slate-900/5">
+
+        <div id="login-screen" class="absolute inset-0 bg-slate-950 z-50 flex flex-col justify-center items-center px-6 fade-in text-white overflow-hidden">
+            <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-brand-600 rounded-full blur-[120px] opacity-20"></div>
+            <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-600 rounded-full blur-[120px] opacity-20"></div>
+
+            <div class="z-10 w-full flex flex-col items-center">
+                <div class="w-20 h-20 bg-gradient-to-br from-brand-400 to-brand-600 rounded-[28px] flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(20,184,166,0.4)] border border-brand-300/30">
+                    <i class="ph-fill ph-film-strip text-4xl text-white"></i>
+                </div>
+                <h1 class="text-3xl font-extrabold mb-2 text-center tracking-tight">ProductionApp</h1>
+                <p class="text-slate-400 mb-10 text-center text-sm font-medium">Manage expenses seamlessly on set.</p>
+                
+                <form onsubmit="handleLogin(event)" class="w-full">
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-slate-300 mb-2 ml-1">Username</label>
+                        <input type="text" id="login-username" required
+                            class="w-full bg-slate-900/50 border border-slate-700 rounded-2xl py-4 px-5 text-lg font-medium text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/50 transition-all placeholder-slate-600"
+                            placeholder="e.g. admin">
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-sm font-semibold text-slate-300 mb-2 ml-1">Password</label>
+                        <input type="password" id="login-password" required
+                            class="w-full bg-slate-900/50 border border-slate-700 rounded-2xl py-4 px-5 text-lg font-medium text-white focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/50 transition-all placeholder-slate-600"
+                            placeholder="••••••••">
+                    </div>
+                    <button type="submit" id="login-btn" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold text-lg hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-500/30">
+                        Sign In <i class="ph-bold ph-sign-in"></i>
+                    </button>
+                    
+                    <div class="relative mt-8 mb-6">
+                        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-800"></div></div>
+                        <div class="relative flex justify-center text-sm"><span class="px-4 bg-slate-950 text-slate-500 font-semibold">OR</span></div>
+                    </div>
+
+                    <button type="button" onclick="loginAsGuest()" class="w-full bg-slate-800/80 text-white border border-slate-700 rounded-2xl py-4 font-bold text-lg hover:bg-slate-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2">
+                        Continue as Guest <i class="ph-bold ph-user-circle"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <div id="admin-screen" class="flex flex-col h-full w-full view-hidden fade-in relative bg-slate-50">
+            <header class="glass px-6 py-4 flex justify-between items-center shadow-sm z-10 sticky top-0 border-b border-slate-200/50">
+                <div>
+                    <p class="text-[10px] font-bold text-brand-500 uppercase tracking-wider mb-0.5">Admin Portal</p>
+                    <h1 class="text-xl font-extrabold text-slate-800 flex items-center gap-2 tracking-tight">Control Panel</h1>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="refreshData(this)" class="p-2.5 rounded-full bg-white shadow-soft text-slate-600 hover:text-brand-600 transition-colors border border-slate-100">
+                        <i class="ph-bold ph-arrows-clockwise text-lg"></i>
+                    </button>
+                    <button onclick="logout()" class="p-2.5 rounded-full bg-white shadow-soft text-slate-600 hover:text-red-600 transition-colors border border-slate-100">
+                        <i class="ph-bold ph-sign-out text-lg"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-y-auto pb-24 px-4 pt-6" id="admin-content">
+                <!-- Segmented Control Tabs -->
+                <div class="flex p-1.5 mb-8 bg-slate-200/60 rounded-[20px] overflow-x-auto no-scrollbar shadow-inner">
+                    <button onclick="switchAdminTab('expenses')" id="tab-btn-expenses" class="flex-1 py-2.5 px-3 rounded-2xl text-xs font-bold bg-white text-slate-900 shadow-sm transition-all whitespace-nowrap">Expenses</button>
+                    <button onclick="switchAdminTab('overview')" id="tab-btn-overview" class="flex-1 py-2.5 px-3 rounded-2xl text-xs font-bold text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap">Balances</button>
+                    <button onclick="switchAdminTab('projects')" id="tab-btn-projects" class="flex-1 py-2.5 px-3 rounded-2xl text-xs font-bold text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap">Projects</button>
+                    <button onclick="switchAdminTab('users')" id="tab-btn-users" class="flex-1 py-2.5 px-3 rounded-2xl text-xs font-bold text-slate-500 hover:text-slate-800 transition-all whitespace-nowrap">Users</button>
+                </div>
+
+                <!-- Tab: Overview & Balances -->
+                <div id="admin-tab-overview" class="view-hidden space-y-8">
+                    <div>
+                        <h3 class="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2 px-1"><i class="ph-fill ph-scales text-brand-500"></i> Account Balances</h3>
+                        <div id="admin-balances-list" class="space-y-4"></div>
+                    </div>
+                </div>
+
+                <!-- Tab: Expenses -->
+                <div id="admin-tab-expenses" class="view-hidden space-y-6">
+                    <div id="admin-expenses-view-selector" class="mb-4">
+                        <h3 class="font-bold text-lg mb-4 text-slate-800 px-1">All Projects</h3>
+                        <div id="admin-all-projects-list" class="space-y-4"></div>
+                    </div>
+
+                    <div id="admin-expenses-detail-view" class="view-hidden space-y-6">
+                        <div class="flex items-center gap-3 mb-2">
+                            <button onclick="backToAllProjectsExpenses()" class="p-2 rounded-full bg-white shadow-sm border border-slate-100 text-slate-600 hover:text-brand-600">
+                                <i class="ph-bold ph-arrow-left"></i>
+                            </button>
+                            <h3 class="font-bold text-lg text-slate-800 flex-1 truncate" id="expense-detail-project-name">Project Name</h3>
+                            <button onclick="exportAdminProjectPDF()" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-colors">
+                                <i class="ph-bold ph-download-simple"></i> Report
+                            </button>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-3xl shadow-soft border border-slate-100">
+                             <div class="flex justify-between items-center mb-4">
+                                <h4 class="font-bold text-slate-700">Filters & Sorting</h4>
+                            </div>
+                            <div class="space-y-3">
+                                <select id="admin-expense-filter-person" onchange="renderAdminProjectExpensesDetail()" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                    <option value="all">Filter: All Persons</option>
+                                </select>
+                                <select id="admin-expense-sort" onchange="renderAdminProjectExpensesDetail()" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                    <option value="recent">Sort: Most Recent</option>
+                                    <option value="oldest">Sort: Oldest First</option>
+                                    <option value="amount_high">Sort: Amount (High to Low)</option>
+                                    <option value="amount_low">Sort: Amount (Low to High)</option>
+                                    <option value="user">Group by User</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div id="admin-project-total-card" class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-float relative overflow-hidden">
+                            <div class="absolute -right-6 -top-6 w-24 h-24 bg-brand-500 rounded-full blur-2xl opacity-30"></div>
+                            <p class="text-slate-400 text-sm font-medium mb-1 relative z-10">Filtered Total</p>
+                            <h2 class="text-3xl font-bold flex items-baseline gap-1 relative z-10">
+                                <span class="text-xl text-slate-500">₹</span>
+                                <span id="admin-project-total-amount">0</span>
+                            </h2>
+                        </div>
+
+                        <div id="admin-category-summary" class="flex gap-3 overflow-x-auto no-scrollbar py-2 -mt-2 mb-2"></div>
+                        <div id="admin-project-expenses-list" class="space-y-4"></div>
+                    </div>
+                </div>
+
+                <!-- Tab: Projects -->
+                <div id="admin-tab-projects" class="view-hidden space-y-6">
+                    <div id="admin-projects-main-view">
+                        <div class="bg-white p-6 rounded-3xl shadow-soft border border-slate-100 mb-6">
+                            <h3 class="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2" id="project-form-title"><i class="ph-fill ph-folder-plus text-brand-500"></i> Create Work</h3>
+                            <div class="space-y-3">
+                                <input type="month" id="new-proj-month" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                <input type="text" id="new-proj-name" placeholder="Project Name" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                <div class="flex gap-2">
+                                    <button type="button" id="cancel-edit-proj-btn" onclick="cancelEditProject()" class="hidden w-1/3 bg-slate-100 text-slate-600 rounded-2xl py-4 font-bold hover:bg-slate-200 transition-all shadow-sm">Cancel</button>
+                                    <button id="save-proj-btn" onclick="saveProject()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all shadow-md">Add Project</button>
+                                </div>
+                            </div>
+                        </div>
+                        <h3 class="font-bold text-lg mb-4 text-slate-800 px-1">Manage Works</h3>
+                        <div id="admin-projects-manage-list" class="space-y-6"></div>
+                    </div>
+
+                    <div id="admin-project-allocation-view" class="view-hidden space-y-6">
+                        <div class="flex items-center gap-3 mb-2">
+                            <button onclick="backToProjectsMain()" class="p-2 rounded-full bg-white shadow-sm border border-slate-100 text-slate-600 hover:text-brand-600">
+                                <i class="ph-bold ph-arrow-left"></i>
+                            </button>
+                            <h3 class="font-bold text-lg text-slate-800" id="allocation-project-name">Project Name</h3>
+                        </div>
+
+                        <div class="bg-white p-6 rounded-3xl shadow-soft border border-slate-100">
+                            <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-slate-800"><i class="ph-fill ph-wallet text-brand-500 text-xl"></i> Allocate Funds</h3>
+                            <div class="space-y-4">
+                                <input type="hidden" id="alloc-project-id">
+                                <select id="alloc-user" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all"></select>
+                                <div class="relative">
+                                    <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                                    <input type="number" id="alloc-amount" placeholder="Amount" class="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-9 pr-4 text-sm font-bold focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                                </div>
+                                <button onclick="allocateFunds()" class="w-full bg-slate-900 text-white rounded-2xl py-4 font-bold hover:bg-slate-800 active:scale-[0.98] transition-all shadow-md">Assign Budget</button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-bold text-slate-700 mb-3 px-1">Current Allocations</h4>
+                            <div id="project-current-allocations" class="space-y-3"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Users -->
+                <div id="admin-tab-users" class="view-hidden space-y-6">
+                    <div class="bg-white p-6 rounded-3xl shadow-soft border border-slate-100">
+                        <h3 class="font-bold text-lg mb-4 text-slate-800 flex items-center gap-2"><i class="ph-fill ph-user-plus text-brand-500"></i> Add/Edit User</h3>
+                        <div class="space-y-3">
+                            <input type="hidden" id="edit-user-id">
+                            <input type="text" id="new-user-name" placeholder="Username" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                            <input type="text" id="new-user-pwd" placeholder="Password" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-medium focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                            <div class="flex gap-2">
+                                <button type="button" id="cancel-user-btn" onclick="cancelEditUser()" class="hidden w-1/3 bg-slate-100 text-slate-600 rounded-2xl py-4 font-bold hover:bg-slate-200 transition-all shadow-sm">Cancel</button>
+                                <button id="save-user-btn" onclick="saveUser()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all shadow-md">Save User</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="admin-users-list" class="space-y-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="user-screen" class="flex flex-col w-full h-full view-hidden fade-in relative bg-slate-50">
+            <header class="glass px-5 py-4 flex justify-between items-center shadow-sm z-10 sticky top-0 border-b border-slate-200/50">
+                <div>
+                    <p class="text-[10px] font-bold text-brand-500 uppercase tracking-widest mb-0.5" id="user-header-subtitle">Welcome</p>
+                    <h1 class="text-xl font-extrabold text-slate-800 flex items-center gap-2 tracking-tight" id="user-header-title">Select Month</h1>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="h-10 w-10 rounded-full bg-gradient-to-br from-brand-100 to-brand-200 border-2 border-brand-400 flex items-center justify-center text-brand-700 font-bold shadow-sm text-sm" id="user-avatar">--</div>
+                    <button id="user-vault-btn" onclick="openUserVaultView()" class="p-2.5 rounded-full bg-white border border-slate-100 shadow-soft text-slate-500 hover:text-brand-600 transition-colors hidden ml-1">
+                        <i class="ph-bold ph-vault text-lg"></i>
+                    </button>
+                    <button onclick="refreshData(this)" class="p-2.5 rounded-full bg-white border border-slate-100 shadow-soft text-slate-500 hover:text-brand-600 transition-colors ml-1">
+                        <i class="ph-bold ph-arrows-clockwise text-lg"></i>
+                    </button>
+                    <button onclick="logout()" class="p-2.5 rounded-full bg-white border border-slate-100 shadow-soft text-slate-500 hover:text-red-600 transition-colors">
+                        <i class="ph-bold ph-sign-out text-lg"></i>
+                    </button>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-y-auto no-scrollbar pb-28 px-4 pt-6 relative" id="user-main-content">
+                
+                <!-- Level 1: Choose Month -->
+                <div id="user-view-months" class="space-y-4"></div>
+
+                <!-- Level 2: Choose Work -->
+                <div id="user-view-works" class="view-hidden space-y-4">
+                    <button onclick="navToMonths()" class="mb-2 inline-flex text-sm font-bold text-slate-500 items-center gap-1 hover:text-slate-800 bg-white py-2.5 px-4 rounded-xl shadow-soft border border-slate-100 transition-all">
+                        <i class="ph-bold ph-arrow-left"></i> Back
+                    </button>
+                    <div id="works-list-container" class="space-y-3"></div>
+                </div>
+
+                <!-- Level 3: Tracker -->
+                <div id="user-view-tracker" class="view-hidden">
+                    <div class="flex justify-between items-center mb-4">
+                        <button onclick="navToWorks()" class="inline-flex text-sm font-bold text-slate-500 items-center gap-1 hover:text-slate-800 bg-white py-2.5 px-4 rounded-xl shadow-soft border border-slate-100 transition-all">
+                            <i class="ph-bold ph-arrow-left"></i> Back
+                        </button>
+                        <button onclick="exportUserProjectPDF()" class="inline-flex text-sm font-bold text-white items-center gap-1 bg-brand-600 hover:bg-brand-700 py-2.5 px-4 rounded-xl shadow-soft transition-all">
+                            <i class="ph-bold ph-download-simple"></i> PDF Report
+                        </button>
+                    </div>
+
+                    <section class="mb-6" id="allocation-banner-section">
+                        <div class="bg-[#0b1120] rounded-[32px] p-6 text-white shadow-float relative overflow-hidden border border-slate-800">
+                            <!-- Glow effects -->
+                            <div class="absolute -right-10 -top-10 w-40 h-40 bg-brand-500 rounded-full blur-[50px] opacity-10"></div>
+                            
+                            <div class="relative z-10">
+                                <p class="text-slate-400 text-sm font-medium mb-1" id="tracker-spent-label">Spent on this Project</p>
+                                <h2 class="text-4xl font-extrabold mb-6 flex items-baseline gap-1 tracking-tight">
+                                    <span class="text-2xl text-slate-500 font-bold">₹</span>
+                                    <span id="tracker-spent">0</span>
+                                </h2>
+                                
+                                <div class="flex gap-3" id="tracker-balance-container">
+                                    <!-- Project Fund Block -->
+                                    <div class="bg-slate-800/60 rounded-2xl p-3.5 flex-1 border border-slate-700/50 backdrop-blur-md relative group cursor-pointer transition-colors hover:bg-slate-800" onclick="openSelfAllocModal('project')">
+                                        <div class="flex justify-between items-center mb-1">
+                                            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                                <i class="ph-bold ph-folder"></i> Project Fund
+                                            </p>
+                                        </div>
+                                        <p class="font-bold text-base text-white" id="tracker-proj-balance">₹0</p>
+                                    </div>
+                                    
+                                    <!-- Common Fund Block (No longer clickable inside project) -->
+                                    <div class="bg-brand-950/40 rounded-2xl p-3.5 flex-1 border border-brand-900/50 backdrop-blur-md relative group transition-colors">
+                                        <div class="flex justify-between items-center mb-1">
+                                            <p class="text-[10px] font-bold text-brand-300 uppercase tracking-wider flex items-center gap-1">
+                                                <i class="ph-bold ph-money"></i> Common Fund
+                                            </p>
+                                        </div>
+                                        <p class="font-bold text-base text-brand-50" id="tracker-common-balance">₹0</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <div class="mb-6">
+                        <button onclick="openAddExpenseModal()" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] text-white py-4 px-4 rounded-2xl font-bold text-lg flex justify-center items-center gap-2 transition-all shadow-[0_10px_30px_rgba(20,184,166,0.3)] border border-brand-400/20">
+                            <i class="ph-bold ph-plus-circle text-xl"></i> Add Expense
+                        </button>
+                    </div>
+
+                    <div id="user-category-summary" class="mb-6 flex gap-3 overflow-x-auto no-scrollbar py-2 -mt-2"></div>
+                    
+                    <section id="project-fund-history-section" class="mb-6 view-hidden">
+                        <h3 class="text-lg font-extrabold text-slate-800 tracking-tight mb-3 px-2">Project Fund History</h3>
+                        <div class="bg-white rounded-[32px] p-2 shadow-soft border border-slate-100" id="project-fund-history-list">
+                            <!-- History injected here -->
+                        </div>
+                    </section>
+
+                    <section>
+                        <div class="flex justify-between items-end mb-4 px-2">
+                            <h3 class="text-lg font-extrabold text-slate-800 tracking-tight" id="expenses-list-title">My Expenses</h3>
+                            <span class="text-[11px] font-bold text-brand-700 bg-brand-100/80 px-2.5 py-1 rounded-lg border border-brand-200" id="tracker-count">0 items</span>
+                        </div>
+                        
+                        <div class="bg-white rounded-[32px] p-2 shadow-soft border border-slate-100" id="tracker-expenses-list">
+                            <!-- Expenses injected here -->
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Level 4: Vault View -->
+                <div id="user-view-vault" class="view-hidden space-y-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <button onclick="closeUserVaultView()" class="inline-flex text-sm font-bold text-slate-500 items-center gap-1 hover:text-slate-800 bg-white py-2.5 px-4 rounded-xl shadow-soft border border-slate-100 transition-all">
+                            <i class="ph-bold ph-arrow-left"></i> Back
+                        </button>
+                        <button onclick="exportVaultPDF()" class="inline-flex text-sm font-bold text-white items-center gap-1 bg-brand-600 hover:bg-brand-700 py-2.5 px-4 rounded-xl shadow-soft transition-all">
+                            <i class="ph-bold ph-download-simple"></i> Vault Report
+                        </button>
+                    </div>
+
+                    <div class="bg-slate-950 rounded-[32px] p-6 text-white shadow-float relative overflow-hidden border border-slate-800">
+                        <div class="absolute -right-10 -top-10 w-40 h-40 bg-brand-500 rounded-full blur-[50px] opacity-20"></div>
+                        <div class="absolute -left-10 -bottom-10 w-40 h-40 bg-blue-500 rounded-full blur-[50px] opacity-10"></div>
+                        
+                        <div class="relative z-10 flex flex-col items-center justify-center text-center">
+                            <div class="w-16 h-16 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 mb-4 shadow-inner">
+                                <i class="ph-fill ph-vault text-3xl text-brand-400"></i>
+                            </div>
+                            <p class="text-slate-400 text-sm font-medium mb-1">Total Vault Balance</p>
+                            <h2 class="text-5xl font-extrabold mb-2 flex items-baseline gap-1 tracking-tight" id="vault-view-balance">
+                                <span class="text-3xl text-slate-500 font-bold">₹</span>0
+                            </h2>
+                            <p class="text-xs text-slate-500 font-medium mb-6">across all projects</p>
+                            
+                            <button onclick="openSelfAllocModal('vault')" class="w-full bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] text-white py-3.5 px-4 rounded-2xl font-bold text-base flex justify-center items-center gap-2 transition-all shadow-[0_10px_30px_rgba(20,184,166,0.3)] border border-brand-400/20">
+                                <i class="ph-bold ph-plus-minus text-xl"></i> Manage Funds
+                            </button>
+                        </div>
+                    </div>
+
+                    <section>
+                        <div class="flex justify-between items-end mb-4 px-2">
+                            <h3 class="text-lg font-extrabold text-slate-800 tracking-tight">Vault History</h3>
+                        </div>
+                        
+                        <div class="bg-white rounded-[32px] p-2 shadow-soft border border-slate-100" id="vault-history-list">
+                            <!-- Vault history injected here -->
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+
+        <!-- Add Expense Modal -->
+        <div id="expense-modal" class="absolute inset-0 z-[100] hidden flex-col justify-end overflow-hidden">
+            <div class="absolute inset-0 bg-slate-900/50 backdrop-blur-md transition-opacity opacity-0" id="modal-backdrop" onclick="closeExpenseModal()"></div>
+            <div class="relative w-full bg-white rounded-t-[40px] shadow-2xl modal-enter z-10 max-h-[92vh] flex flex-col border-t border-slate-200" id="modal-content">
+                <div class="p-6 pb-8 flex-1 overflow-y-auto no-scrollbar">
+                    <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6"></div>
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight" id="modal-title">Record Expense</h3>
+                        <button type="button" onclick="closeExpenseModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><i class="ph-bold ph-x"></i></button>
+                    </div>
+                    
+                    <form id="expense-form" onsubmit="handleExpenseSubmit(event)">
+                        
+                        <div class="mb-5 view-hidden" id="guest-name-container">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Your Name <span class="text-red-500">*</span></label>
+                            <input type="text" id="expense-guest-name"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-4 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-white transition-all"
+                                placeholder="e.g. John Doe">
+                        </div>
+
+                        <div class="mb-5">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Date <span class="text-red-500">*</span></label>
+                            <input type="date" id="expense-date" required
+                                class="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-4 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-white transition-all text-lg">
+                        </div>
+
+                        <div class="mb-5">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Amount (₹)</label>
+                            <div class="relative">
+                                <span class="absolute left-5 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-400">₹</span>
+                                <input type="number" id="expense-amount" required min="1" step="any"
+                                    class="w-full bg-slate-50 border border-slate-200 rounded-[24px] py-5 pl-14 pr-5 text-3xl font-extrabold text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-white transition-all placeholder-slate-300"
+                                    placeholder="0">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-5">
+                            <label class="block text-sm font-bold text-slate-700 mb-2">Description</label>
+                            <input type="text" id="expense-desc" required
+                                class="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-4 text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 focus:bg-white transition-all"
+                                placeholder="e.g. Transport fare">
+                        </div>
+                        
+                        <div class="mb-8">
+                            <label class="block text-sm font-bold text-slate-700 mb-3">Category</label>
+                            <div class="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                                <!-- Category Radios -->
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="food" class="peer hidden" checked>
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-orange-50 peer-checked:text-orange-600 peer-checked:border-orange-200 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(249,115,22,0.15)] text-center h-full">
+                                        <i class="ph-fill ph-hamburger text-2xl mb-0.5"></i> Food
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="transport" class="peer hidden">
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-blue-50 peer-checked:text-blue-600 peer-checked:border-blue-200 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(59,130,246,0.15)] text-center h-full">
+                                        <i class="ph-fill ph-car text-2xl mb-0.5"></i> Travel
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="equipment" class="peer hidden">
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-purple-50 peer-checked:text-purple-600 peer-checked:border-purple-200 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(168,85,247,0.15)] text-center h-full">
+                                        <i class="ph-fill ph-camera text-2xl mb-0.5"></i> Equip
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="actor" class="peer hidden">
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-yellow-50 peer-checked:text-yellow-600 peer-checked:border-yellow-200 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(234,179,8,0.15)] text-center h-full">
+                                        <i class="ph-fill ph-star text-2xl mb-0.5"></i> Actor
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="rent" class="peer hidden">
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-emerald-50 peer-checked:text-emerald-600 peer-checked:border-emerald-200 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(16,185,129,0.15)] text-center h-full">
+                                        <i class="ph-fill ph-house text-2xl mb-0.5"></i> Rent
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="props" class="peer hidden">
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-pink-50 peer-checked:text-pink-600 peer-checked:border-pink-200 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(236,72,153,0.15)] text-center h-full">
+                                        <i class="ph-fill ph-cube text-2xl mb-0.5"></i> Props
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="costume" class="peer hidden">
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-cyan-50 peer-checked:text-cyan-600 peer-checked:border-cyan-200 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(6,182,212,0.15)] text-center h-full">
+                                        <i class="ph-fill ph-t-shirt text-2xl mb-0.5"></i> Clothes
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="location" class="peer hidden">
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-red-50 peer-checked:text-red-600 peer-checked:border-red-200 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(239,68,68,0.15)] text-center h-full">
+                                        <i class="ph-fill ph-map-pin text-2xl mb-0.5"></i> Locs
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="postprod" class="peer hidden">
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-indigo-50 peer-checked:text-indigo-600 peer-checked:border-indigo-200 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(99,102,241,0.15)] text-center h-full">
+                                        <i class="ph-fill ph-desktop text-2xl mb-0.5"></i> Post
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="category" value="other" class="peer hidden">
+                                    <div class="p-2 rounded-2xl border border-slate-200 text-slate-500 bg-slate-50 peer-checked:bg-slate-800 peer-checked:text-white peer-checked:border-slate-800 font-bold text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1 transition-all shadow-sm peer-checked:shadow-[0_4px_15px_rgba(15,23,42,0.2)] text-center h-full">
+                                        <i class="ph-fill ph-dots-three text-2xl mb-0.5"></i> Other
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-3">
+                            <button type="button" id="delete-btn" onclick="deleteCurrentExpense()" class="hidden w-16 flex-shrink-0 bg-red-100 text-red-600 rounded-2xl py-4 flex items-center justify-center font-bold text-xl hover:bg-red-200 active:scale-[0.95] transition-all shadow-sm">
+                                <i class="ph-bold ph-trash"></i>
+                            </button>
+                            <button type="submit" id="submit-btn" class="flex-1 bg-gradient-to-r from-brand-500 to-brand-600 text-white rounded-2xl py-4 font-bold text-lg hover:from-brand-600 hover:to-brand-700 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-[0_10px_30px_rgba(20,184,166,0.3)]">
+                                <span id="submit-btn-text">Save Expense</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global/Project Vault Self Allocation Modal -->
+        <div id="self-alloc-modal" class="absolute inset-0 z-[120] hidden flex-col justify-center items-center px-4">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity opacity-0" id="self-alloc-backdrop" onclick="closeSelfAllocModal()"></div>
+            <div class="bg-white p-6 rounded-3xl shadow-2xl relative z-10 w-full max-w-[320px] transform scale-95 opacity-0 transition-all duration-300" id="self-alloc-content">
+                <div class="flex justify-between items-center mb-5">
+                    <h3 class="text-xl font-bold text-slate-800 tracking-tight" id="self-alloc-title">Manage Funds</h3>
+                    <button onclick="closeSelfAllocModal()" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"><i class="ph-bold ph-x"></i></button>
+                </div>
+                
+                <div class="mb-4 hidden" id="alloc-target-selector-container">
+                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Target Fund</label>
+                    <select id="self-alloc-target" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-bold text-slate-700 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                        <option value="vault">Common Fund</option>
+                        <option value="project">Project Fund (Current)</option>
+                    </select>
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="alloc-action" id="alloc-action-add" value="add" class="peer hidden" checked>
+                        <div class="p-3 text-center rounded-xl border border-slate-200 peer-checked:bg-emerald-50 peer-checked:text-emerald-700 peer-checked:border-emerald-200 font-bold text-sm transition-all flex justify-center items-center gap-1">
+                            <i class="ph-bold ph-plus"></i> Add
+                        </div>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="alloc-action" id="alloc-action-subtract" value="subtract" class="peer hidden">
+                        <div class="p-3 text-center rounded-xl border border-slate-200 peer-checked:bg-red-50 peer-checked:text-red-700 peer-checked:border-red-200 font-bold text-sm transition-all flex justify-center items-center gap-1">
+                            <i class="ph-bold ph-minus"></i> Subtract
+                        </div>
+                    </label>
+                </div>
+
+                <div class="relative mb-4">
+                    <span class="absolute left-5 top-1/2 -translate-y-1/2 text-xl font-bold text-slate-400">₹</span>
+                    <input type="number" id="self-alloc-amount" placeholder="Amount" class="w-full bg-slate-50 border border-slate-200 rounded-[24px] py-4 pl-12 pr-4 text-2xl font-bold text-slate-800 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                </div>
+
+                <div class="mb-4">
+                    <input type="date" id="self-alloc-date" required
+                        class="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-sm font-medium text-slate-800 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all">
+                </div>
+                
+                <div class="mb-5">
+                    <input type="text" id="self-alloc-reason" placeholder="Reason (e.g. Additional Advance)" class="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-sm font-medium text-slate-800 focus:outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 transition-all placeholder-slate-400">
+                </div>
+
+                <div class="flex gap-3">
+                    <button type="button" id="delete-alloc-btn" onclick="deleteSelfAllocation()" class="hidden w-14 flex-shrink-0 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center font-bold text-xl hover:bg-red-200 active:scale-[0.95] transition-all shadow-sm">
+                        <i class="ph-bold ph-trash"></i>
+                    </button>
+                    <button onclick="saveSelfAllocation()" class="flex-1 bg-slate-900 text-white rounded-2xl py-4 font-bold text-lg hover:bg-slate-800 active:scale-[0.98] transition-all flex justify-center gap-2 items-center shadow-lg">
+                        <i class="ph-bold ph-check-circle"></i> Save Update
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirm Modal -->
+        <div id="confirm-modal" class="absolute inset-0 z-[120] hidden flex-col justify-center items-center px-4">
+            <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity opacity-0" id="confirm-backdrop"></div>
+            <div class="bg-white p-6 rounded-3xl shadow-2xl relative z-10 w-full max-w-[320px] transform scale-95 opacity-0 transition-all duration-300" id="confirm-content">
+                <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mb-4 mx-auto">
+                    <i class="ph-bold ph-warning text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 text-center mb-2" id="confirm-title">Are you sure?</h3>
+                <p class="text-slate-500 text-center text-sm mb-6" id="confirm-text">This action cannot be undone.</p>
+                <div class="flex gap-3">
+                    <button onclick="closeConfirmModal()" class="flex-1 py-3 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors">Cancel</button>
+                    <button id="confirm-action-btn" class="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notification Container -->
+        <div id="toast-container" class="absolute top-6 left-0 right-0 z-[110] flex flex-col items-center gap-2 pointer-events-none px-4"></div>
+
+    </div> <!-- End App Container -->
+
+    <script>
+        // Supabase Credentials
+        var supabaseUrl = 'https://iomalrindmmboiajivoh.supabase.co';
+        var supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlvbWFscmluZG1tYm9pYWppdm9oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwNTUyNDIsImV4cCI6MjA5ODYzMTI0Mn0.c3-gsJH_J4LT3m1bs5Jr9MJj0ciO-mtne3V10d5XY8E';
+        var supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        const VAULT_ID = 'c8dc4c29-a6a3-4c3a-873b-ce1f64b32297';
+
+        var state = {
+            users: [],
+            projects: [],
+            allocations: [],
+            expenses: [],
+            currentUser: null,
+            isGuest: false,
+            activeMonth: null,
+            activeWorkId: null,
+            editingExpenseId: null,
+            adminActiveProjectId: null,
+            editingUserId: null,
+            editingProjectId: null,
+            editingAllocId: null
+        };
+        
+        // Colors mapping for jsPDF to match Tailwind classes closely
+        var categoryPdfColors = {
+            'food': [255, 237, 213],       // orange-100
+            'transport': [219, 234, 254],  // blue-100
+            'equipment': [243, 232, 255],  // purple-100
+            'actor': [254, 249, 195],      // yellow-100
+            'rent': [209, 250, 229],       // emerald-100
+            'props': [252, 231, 243],      // pink-100
+            'costume': [207, 250, 254],    // cyan-100
+            'location': [254, 226, 226],   // red-100
+            'postprod': [224, 231, 255],   // indigo-100
+            'other': [241, 245, 249]       // slate-100
+        };
+
+        var categoryConfig = {
+            'food': { icon: 'ph-hamburger', color: 'text-orange-600', bg: 'bg-orange-100', border: 'border-orange-200' },
+            'transport': { icon: 'ph-car', color: 'text-blue-600', bg: 'bg-blue-100', border: 'border-blue-200' },
+            'equipment': { icon: 'ph-camera', color: 'text-purple-600', bg: 'bg-purple-100', border: 'border-purple-200' },
+            'actor': { icon: 'ph-star', color: 'text-yellow-600', bg: 'bg-yellow-100', border: 'border-yellow-200' },
+            'rent': { icon: 'ph-house', color: 'text-emerald-600', bg: 'bg-emerald-100', border: 'border-emerald-200' },
+            'props': { icon: 'ph-cube', color: 'text-pink-600', bg: 'bg-pink-100', border: 'border-pink-200' },
+            'costume': { icon: 'ph-t-shirt', color: 'text-cyan-600', bg: 'bg-cyan-100', border: 'border-cyan-200' },
+            'location': { icon: 'ph-map-pin', color: 'text-red-600', bg: 'bg-red-100', border: 'border-red-200' },
+            'postprod': { icon: 'ph-desktop', color: 'text-indigo-600', bg: 'bg-indigo-100', border: 'border-indigo-200' },
+            'other': { icon: 'ph-dots-three', color: 'text-slate-600', bg: 'bg-slate-100', border: 'border-slate-200' }
+        };
+
+        const userColors = [
+            'bg-blue-50 text-blue-700 border-blue-200',
+            'bg-emerald-50 text-emerald-700 border-emerald-200',
+            'bg-purple-50 text-purple-700 border-purple-200',
+            'bg-amber-50 text-amber-700 border-amber-200',
+            'bg-rose-50 text-rose-700 border-rose-200',
+            'bg-cyan-50 text-cyan-700 border-cyan-200',
+            'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200'
+        ];
+        
+        function getUserColorClass(index) { return userColors[index % userColors.length]; }
+        function formatMoney(amount) { return parseFloat(amount).toLocaleString('en-IN'); }
+        function formatMonth(monthStr) {
+            if(!monthStr) return '';
+            const d = new Date(monthStr + '-01');
+            return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        }
+        function capitalize(str) { return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase(); }
+
+        var confirmCallback = null;
+        function openConfirmModal(title, text, callback, buttonText="Confirm") {
+            document.getElementById('confirm-title').innerText = title;
+            document.getElementById('confirm-text').innerText = text;
+            confirmCallback = callback;
+            
+            const actionBtn = document.getElementById('confirm-action-btn');
+            actionBtn.innerText = buttonText;
+            if(buttonText === 'Settle' || buttonText === 'Confirm') {
+                actionBtn.className = "flex-1 py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-600/30";
+            } else {
+                actionBtn.className = "flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-colors shadow-lg shadow-red-600/30";
+            }
+
+            const modal = document.getElementById('confirm-modal');
+            const backdrop = document.getElementById('confirm-backdrop');
+            const content = document.getElementById('confirm-content');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            requestAnimationFrame(() => { backdrop.classList.remove('opacity-0'); content.classList.remove('scale-95', 'opacity-0'); });
+            document.getElementById('confirm-action-btn').onclick = () => { closeConfirmModal(); if(confirmCallback) confirmCallback(); };
+        }
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirm-modal');
+            const backdrop = document.getElementById('confirm-backdrop');
+            const content = document.getElementById('confirm-content');
+            backdrop.classList.add('opacity-0'); content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); confirmCallback = null; }, 300);
+        }
+
+        function generateCategorySummaryHTML(expensesToSummarize) {
+            if (!expensesToSummarize || expensesToSummarize.length === 0) return '';
+            const summaryMap = {};
+            expensesToSummarize.forEach(e => {
+                if (!summaryMap[e.category]) summaryMap[e.category] = 0;
+                summaryMap[e.category] += Number(e.amount);
+            });
+            const keys = Object.keys(summaryMap);
+            if (keys.length === 0) return '';
+            keys.sort((a, b) => summaryMap[b] - summaryMap[a]);
+            return keys.map(cat => {
+                const config = categoryConfig[cat] || categoryConfig['other'];
+                const amount = summaryMap[cat];
+                return `
+                    <div class="flex-shrink-0 bg-white border border-slate-100 p-2.5 pr-4 rounded-2xl shadow-sm flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-[14px] flex items-center justify-center ${config.color} ${config.bg} ${config.border} border">
+                            <i class="ph-fill ${config.icon} text-lg"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] uppercase tracking-wider font-extrabold text-slate-400 mb-0.5">${cat}</p>
+                            <p class="font-bold text-slate-800 text-sm">₹${formatMoney(amount)}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function fetchAllData() {
+            try {
+                const [u, p, a, e] = await Promise.all([
+                    supabase.from('exp_users').select('*'),
+                    supabase.from('exp_projects').select('*'),
+                    supabase.from('exp_allocations').select('*'),
+                    supabase.from('exp_expenses').select('*')
+                ]);
+                if (u.error) return console.error("DB Error:", u.error);
+                
+                state.users = u.data || [];
+                state.projects = (p.data || []).map(row => ({...row})).sort((a,b) => b.month.localeCompare(a.month)); 
+                
+                state.allocations = (a.data || []).map(row => {
+                    let ts = row.created_at ? new Date(row.created_at).getTime() : Date.now();
+                    let gName = row.guest_name;
+                    
+                    if (gName && gName.includes('||')) {
+                        const parts = gName.split('||');
+                        const parsedDate = new Date(parts[0]);
+                        if (!isNaN(parsedDate.getTime())) {
+                            ts = parsedDate.getTime();
+                            gName = parts[1];
+                        }
+                    }
+                    
+                    return {
+                        id: row.id, projectId: row.project_id, userId: row.user_id,
+                        amount: row.amount, settledExcess: row.settled_excess, guestName: gName,
+                        timestamp: ts
+                    };
+                });
+
+                state.expenses = (e.data || []).map(row => ({
+                    id: row.id, projectId: row.project_id, userId: row.user_id,
+                    amount: row.amount, desc: row.description, category: row.category,
+                    guestName: row.guest_name, timestamp: new Date(row.created_at).getTime()
+                })).sort((x, y) => y.timestamp - x.timestamp);
+
+                await checkAdminSeed();
+                updateUIBasedOnRole();
+            } catch (err) {
+                console.error("Fetch Data Error:", err);
+            }
+        }
+
+        async function checkAdminSeed() {
+            if (state.users.length === 0) {
+                const { error } = await supabase.from('exp_users').insert({ id: 'admin', username: 'admin', password: '123', role: 'admin' });
+                if (!error) await fetchAllData();
+            } else {
+                const adminUser = state.users.find(u => u.username === 'admin');
+                if (adminUser && adminUser.password !== '123') {
+                    await supabase.from('exp_users').update({ password: '123' }).eq('id', adminUser.id);
+                    adminUser.password = '123'; 
+                }
+            }
+
+            if (!state.projects.find(p => p.id === VAULT_ID)) {
+                const vaultData = { id: VAULT_ID, name: 'Global Vault Storage', month: '2000-01' };
+                const { error } = await supabase.from('exp_projects').insert(vaultData);
+                if (!error) state.projects.push(vaultData);
+            }
+        }
+
+        window.handleLogin = async function(e) {
+            e.preventDefault();
+            const un = document.getElementById('login-username').value.trim();
+            const pw = document.getElementById('login-password').value.trim();
+            if(!un || !pw) return;
+
+            const btn = document.getElementById('login-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="ph-bold ph-spinner animate-spin"></i>`; 
+
+            await new Promise(r => setTimeout(r, 400));
+            const user = state.users.find(u => u.username.toLowerCase() === un.toLowerCase() && u.password === pw);
+            
+            if (user) {
+                state.currentUser = user; state.isGuest = false;
+                document.getElementById('login-screen').classList.add('hidden');
+                
+                if (user.role === 'admin') {
+                    document.getElementById('admin-screen').classList.remove('view-hidden');
+                    switchAdminTab('expenses');
+                } else {
+                    document.getElementById('user-screen').classList.remove('view-hidden');
+                    document.getElementById('user-avatar').innerText = user.username.substring(0,2).toUpperCase();
+                    renderUserMonths();
+                }
+                updateUIBasedOnRole();
+                document.getElementById('login-username').value = ''; document.getElementById('login-password').value = '';
+            } else showToast("Invalid username or password", "error");
+            btn.innerHTML = originalText;
+        }
+
+        window.loginAsGuest = function() {
+            state.isGuest = true;
+            state.currentUser = { id: 'guest_user', username: 'Guest', role: 'guest' };
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('user-screen').classList.remove('view-hidden');
+            document.getElementById('user-avatar').innerHTML = '<i class="ph-bold ph-user"></i>';
+            renderUserMonths();
+            updateUIBasedOnRole();
+        }
+
+        window.logout = function() {
+            state.currentUser = null; state.isGuest = false; state.activeMonth = null; state.activeWorkId = null;
+            document.getElementById('admin-screen').classList.add('view-hidden');
+            document.getElementById('user-screen').classList.add('view-hidden');
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('user-view-months').classList.remove('view-hidden');
+            document.getElementById('user-view-works').classList.add('view-hidden');
+            document.getElementById('user-view-tracker').classList.add('view-hidden');
+            document.getElementById('user-view-vault').classList.add('view-hidden');
+            document.getElementById('user-vault-btn').classList.add('hidden');
+        }
+
+        window.openSelfAllocModal = function(targetType = 'vault', allocId = null) {
+            if (state.isGuest) return showToast("Guests cannot set their own budget.", "warning");
+            state.editingAllocId = allocId;
+            
+            const targetSelector = document.getElementById('self-alloc-target');
+            if (targetType === 'vault') targetSelector.value = 'vault';
+            else if (targetType === 'project') targetSelector.value = 'project';
+
+            if (!state.activeWorkId) {
+                targetSelector.value = 'vault';
+            }
+            
+            if (allocId) {
+                const alloc = state.allocations.find(a => a.id === allocId);
+                if (!alloc) return;
+                document.getElementById('self-alloc-amount').value = Math.abs(alloc.amount);
+                document.getElementById('self-alloc-reason').value = alloc.guestName || '';
+                
+                const allocDate = new Date(alloc.timestamp || Date.now());
+                const localDate = new Date(allocDate.getTime() - (allocDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                document.getElementById('self-alloc-date').value = localDate;
+
+                if (alloc.amount < 0) {
+                    document.getElementById('alloc-action-subtract').checked = true;
+                } else {
+                    document.getElementById('alloc-action-add').checked = true;
+                }
+                document.getElementById('self-alloc-title').innerText = 'Edit Fund Entry';
+                document.getElementById('delete-alloc-btn').classList.remove('hidden');
+            } else {
+                document.getElementById('self-alloc-amount').value = '';
+                document.getElementById('self-alloc-reason').value = '';
+                
+                const today = new Date();
+                const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                document.getElementById('self-alloc-date').value = localDate;
+
+                document.getElementById('alloc-action-add').checked = true;
+                document.getElementById('self-alloc-title').innerText = 'Manage Funds';
+                document.getElementById('delete-alloc-btn').classList.add('hidden');
+            }
+
+            const modal = document.getElementById('self-alloc-modal');
+            const backdrop = document.getElementById('self-alloc-backdrop');
+            const content = document.getElementById('self-alloc-content');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            requestAnimationFrame(() => { backdrop.classList.remove('opacity-0'); content.classList.remove('scale-95', 'opacity-0'); });
+            setTimeout(() => document.getElementById('self-alloc-amount').focus(), 100);
+        }
+
+        window.closeSelfAllocModal = function() {
+            const modal = document.getElementById('self-alloc-modal');
+            const backdrop = document.getElementById('self-alloc-backdrop');
+            const content = document.getElementById('self-alloc-content');
+            backdrop.classList.add('opacity-0'); content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); state.editingAllocId = null; }, 300);
+        }
+
+        window.saveSelfAllocation = async function() {
+            const amountStr = document.getElementById('self-alloc-amount').value;
+            const adjustment = Number(amountStr);
+            if (amountStr === '' || isNaN(adjustment) || adjustment <= 0) return showToast("Enter a valid positive amount", "error");
+
+            const isAdd = document.getElementById('alloc-action-add').checked;
+            const amtToChange = isAdd ? adjustment : -adjustment;
+            const reasonStr = document.getElementById('self-alloc-reason').value.trim();
+            const dateVal = document.getElementById('self-alloc-date').value;
+            
+            const target = document.getElementById('self-alloc-target').value;
+            const finalProjectId = (target === 'project' && state.activeWorkId) ? state.activeWorkId : VAULT_ID;
+
+            const userId = state.currentUser.id;
+            
+            let dateObj = state.editingAllocId ? new Date(state.allocations.find(a => a.id === state.editingAllocId).timestamp || Date.now()) : new Date();
+            if(dateVal) {
+                const [year, month, day] = dateVal.split('-');
+                dateObj.setFullYear(year, month - 1, day);
+            }
+            
+            const finalReason = reasonStr || (isAdd ? 'Added Funds' : 'Subtracted Funds');
+            const encodedReason = `${dateObj.toISOString()}||${finalReason}`;
+            
+            const newAllocation = {
+                user_id: userId,
+                project_id: finalProjectId,
+                amount: amtToChange,
+                settled_excess: 0,
+                guest_name: encodedReason 
+            };
+
+            closeSelfAllocModal();
+
+            try {
+                if (state.editingAllocId) {
+                    const { error } = await supabase.from('exp_allocations').update(newAllocation).eq('id', state.editingAllocId);
+                    if (error) throw error;
+                    showToast("Fund entry updated");
+                } else {
+                    const { error } = await supabase.from('exp_allocations').insert(newAllocation);
+                    if (error) throw error;
+                    showToast("Funds updated successfully");
+                }
+                await fetchAllData();
+            } catch (e) {
+                console.error(e);
+                showToast("Error updating funds", "error");
+                await fetchAllData(); 
+            }
+        }
+
+        window.deleteSelfAllocation = function() {
+            if (!state.editingAllocId) return;
+            openConfirmModal("Delete Fund Entry", "Are you sure you want to permanently delete this entry?", async () => {
+                try {
+                    const { error } = await supabase.from('exp_allocations').delete().eq('id', state.editingAllocId);
+                    if(error) throw error;
+                    closeSelfAllocModal();
+                    showToast("Fund entry deleted.");
+                    await fetchAllData();
+                } catch(e) { console.error(e); showToast("Error deleting entry.", "error"); }
+            });
+        }
+
+        window.renderUserTracker = function() {
+            const project = state.projects.find(p => p.id === state.activeWorkId);
+            if(!project) return;
+            document.getElementById('user-header-title').innerText = project.name;
+            document.getElementById('user-header-subtitle').innerText = state.isGuest ? 'Guest Access' : 'Expense Tracker';
+
+            const myExpenses = state.expenses.filter(e => e.userId === state.currentUser.id && e.projectId === state.activeWorkId);
+            const totalProjectSpent = myExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+            
+            document.getElementById('tracker-spent').innerText = formatMoney(totalProjectSpent);
+            document.getElementById('tracker-count').innerText = `${myExpenses.length} items`;
+            document.getElementById('user-category-summary').innerHTML = generateCategorySummaryHTML(myExpenses);
+
+            const balanceContainer = document.getElementById('tracker-balance-container');
+            
+            if (state.isGuest) {
+                document.getElementById('tracker-spent-label').innerText = "Guest Total Added";
+                balanceContainer.classList.add('hidden');
+                document.getElementById('project-fund-history-section').classList.add('view-hidden');
+            } else {
+                document.getElementById('tracker-spent-label').innerText = "Spent on this Project";
+                balanceContainer.classList.remove('hidden');
+                document.getElementById('project-fund-history-section').classList.remove('view-hidden');
+                
+                // Common Fund Calculation (Decoupled)
+                const vaultAllocs = state.allocations.filter(a => a.userId === state.currentUser.id && a.projectId === VAULT_ID);
+                const commonBalance = vaultAllocs.reduce((sum, a) => sum + Number(a.amount), 0);
+                
+                const commonBalEl = document.getElementById('tracker-common-balance');
+                if (commonBalance < 0) {
+                    commonBalEl.innerHTML = `<span class="text-red-400 font-extrabold">-₹${formatMoney(Math.abs(commonBalance))}</span>`;
+                } else {
+                    commonBalEl.innerHTML = `₹${formatMoney(commonBalance)}`;
+                }
+
+                // Project Fund Calculation
+                const myProjAllocations = state.allocations.filter(a => a.userId === state.currentUser.id && a.projectId === state.activeWorkId);
+                const validProjAllocs = myProjAllocations.filter(a => !(a.amount === 0 && a.settledExcess === 1));
+                
+                // Include settled excess to perfectly match admin balances
+                const totalProjAllocated = validProjAllocs.reduce((sum, a) => sum + Number(a.amount), 0);
+                
+                const projBalance = totalProjAllocated - totalProjectSpent;
+                const projBalEl = document.getElementById('tracker-proj-balance');
+                
+                if (totalProjAllocated === 0) {
+                    projBalEl.innerHTML = `<span class="text-[11px] text-slate-500 font-normal">₹0 allocated</span>`;
+                } else {
+                    if (projBalance < 0) {
+                        projBalEl.innerHTML = `<span class="text-red-400 font-extrabold">-₹${formatMoney(Math.abs(projBalance))}</span>`;
+                    } else {
+                        projBalEl.innerHTML = `₹${formatMoney(projBalance)}`;
+                    }
+                }
+
+                // Project Fund History List
+                const historyList = document.getElementById('project-fund-history-list');
+                if (validProjAllocs.length === 0) {
+                    historyList.innerHTML = `<p class="text-center text-xs text-slate-400 py-4 font-medium italic">No separate project funds added yet.</p>`;
+                } else {
+                    const sortedAllocs = [...validProjAllocs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                    historyList.innerHTML = sortedAllocs.map(alloc => {
+                        const isAdd = alloc.amount > 0;
+                        const iconColor = isAdd ? 'text-emerald-500' : 'text-red-500';
+                        const bgColor = isAdd ? 'bg-emerald-50' : 'bg-red-50';
+                        const icon = isAdd ? 'ph-arrow-down-left' : 'ph-arrow-up-right';
+                        const sign = isAdd ? '+' : '-';
+                        const amountTextClass = isAdd ? 'text-emerald-600' : 'text-slate-900';
+                        const dateStr = alloc.timestamp ? new Date(alloc.timestamp).toLocaleDateString([], {day: '2-digit', month: 'short', year: 'numeric'}) : '';
+                        return `
+                            <div class="flex items-center justify-between p-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors rounded-[24px] cursor-pointer" onclick="openSelfAllocModal('project', '${alloc.id}')">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-2xl flex items-center justify-center ${iconColor} ${bgColor} border border-transparent shadow-sm">
+                                        <i class="ph-bold ${icon} text-lg"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-bold text-slate-800 text-sm">${alloc.guestName || (isAdd ? 'Added Funds' : 'Subtracted Funds')}</p>
+                                        <p class="text-[10px] text-slate-500 font-medium">${dateStr}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center pr-2">
+                                    <p class="font-extrabold ${amountTextClass} text-[14px] tracking-tight">${sign}₹${formatMoney(Math.abs(alloc.amount))}</p>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+
+            // Render Expenses List
+            const listContainer = document.getElementById('tracker-expenses-list');
+            if(myExpenses.length === 0) {
+                listContainer.innerHTML = `<div class="text-center py-10"><i class="ph-fill ph-receipt text-4xl text-slate-200 mb-2 block"></i><span class="text-slate-400 text-sm font-medium">No expenses yet.</span></div>`;
+            } else {
+                listContainer.innerHTML = myExpenses.map(exp => {
+                    const config = categoryConfig[exp.category] || categoryConfig['other'];
+                    const timeStr = new Date(exp.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const guestTag = state.isGuest && exp.guestName ? `<span class="text-[9px] uppercase font-bold tracking-wider bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md ml-2 border border-slate-200">${exp.guestName}</span>` : '';
+                    return `
+                        <div class="flex items-center justify-between p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors rounded-[24px] cursor-pointer" onclick="editExpense('${exp.id}')">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-[16px] flex items-center justify-center ${config.color} ${config.bg} ${config.border} border shadow-sm">
+                                    <i class="ph-fill ${config.icon} text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-slate-800 text-sm line-clamp-1 w-32 sm:w-auto">${exp.desc} ${guestTag}</p>
+                                    <p class="text-[10px] text-slate-500 mt-0.5 font-medium">${timeStr}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center pl-2">
+                                <p class="font-extrabold text-slate-900 text-[15px] tracking-tight">₹${formatMoney(exp.amount)}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        window.openUserVaultView = function() {
+            state.activeMonth = null;
+            state.activeWorkId = null;
+            document.getElementById('user-view-months').classList.add('view-hidden');
+            document.getElementById('user-view-works').classList.add('view-hidden');
+            document.getElementById('user-view-tracker').classList.add('view-hidden');
+            document.getElementById('user-view-vault').classList.remove('view-hidden');
+            document.getElementById('user-header-title').innerText = 'My Vault';
+            document.getElementById('user-header-subtitle').innerText = 'Funds Overview';
+            renderUserVaultView();
+        }
+
+        window.closeUserVaultView = function() {
+            document.getElementById('user-view-vault').classList.add('view-hidden');
+            renderUserMonths();
+            document.getElementById('user-view-months').classList.remove('view-hidden');
+        }
+
+        function renderUserVaultView() {
+            if (!state.currentUser || state.isGuest) return;
+
+            const myVaultAllocs = state.allocations.filter(a => a.userId === state.currentUser.id && a.projectId === VAULT_ID);
+            const globalBalance = myVaultAllocs.reduce((sum, a) => sum + Number(a.amount), 0);
+
+            const balanceEl = document.getElementById('vault-view-balance');
+            if (globalBalance < 0) {
+                balanceEl.innerHTML = `<span class="text-3xl font-bold">₹</span><span class="text-red-500">-${formatMoney(Math.abs(globalBalance))}</span>`;
+            } else {
+                balanceEl.innerHTML = `<span class="text-3xl text-slate-500 font-bold">₹</span>${formatMoney(globalBalance)}`;
+            }
+
+            const historyList = document.getElementById('vault-history-list');
+            if (myVaultAllocs.length === 0) {
+                historyList.innerHTML = `<div class="text-center py-10"><i class="ph-fill ph-vault text-4xl text-slate-200 mb-2 block"></i><span class="text-slate-400 text-sm font-medium">No vault history yet.</span></div>`;
+            } else {
+                const sortedAllocs = [...myVaultAllocs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)); 
+                historyList.innerHTML = sortedAllocs.map(alloc => {
+                    const isAdd = alloc.amount > 0;
+                    const iconColor = isAdd ? 'text-emerald-500' : 'text-red-500';
+                    const bgColor = isAdd ? 'bg-emerald-50' : 'bg-red-50';
+                    const borderColor = isAdd ? 'border-emerald-100' : 'border-red-100';
+                    const icon = isAdd ? 'ph-arrow-down-left' : 'ph-arrow-up-right';
+                    const sign = isAdd ? '+' : '-';
+                    const amountTextClass = isAdd ? 'text-emerald-600' : 'text-slate-900';
+                    const dateStr = alloc.timestamp ? new Date(alloc.timestamp).toLocaleDateString([], {day: '2-digit', month: 'short', year: 'numeric'}) : '';
+
+                    return `
+                        <div class="flex items-center justify-between p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors rounded-[24px] cursor-pointer" onclick="openSelfAllocModal('vault', '${alloc.id}')">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 rounded-[16px] flex items-center justify-center ${iconColor} ${bgColor} ${borderColor} border shadow-sm">
+                                    <i class="ph-bold ${icon} text-xl"></i>
+                                </div>
+                                <div>
+                                    <p class="font-bold text-slate-800 text-sm">${alloc.guestName || (isAdd ? 'Added Funds' : 'Subtracted Funds')}</p>
+                                    <p class="text-[10px] text-slate-500 font-medium">${dateStr}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center pl-2">
+                                <p class="font-extrabold ${amountTextClass} text-[15px] tracking-tight">${sign}₹${formatMoney(Math.abs(alloc.amount))}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        window.updateUIBasedOnRole = function() {
+            if (!state.currentUser) return;
+            if (state.currentUser.role === 'admin') {
+                if(!document.getElementById('admin-tab-users').classList.contains('view-hidden')) renderAdminUsersList();
+                if(!document.getElementById('admin-tab-projects').classList.contains('view-hidden')) {
+                    if(state.adminActiveProjectId) renderAdminProjectAllocationView(state.adminActiveProjectId);
+                    else renderAdminProjectsManageList();
+                }
+                if(!document.getElementById('admin-tab-overview').classList.contains('view-hidden')) renderAdminOverview();
+                if(!document.getElementById('admin-tab-expenses').classList.contains('view-hidden')) {
+                     if(state.adminActiveProjectId) renderAdminProjectExpensesDetail();
+                     else renderAdminAllProjectsList();
+                }
+            } else {
+                if (state.activeWorkId) renderUserTracker();
+                else if (state.activeMonth) renderUserWorks(state.activeMonth);
+                else if (!document.getElementById('user-view-vault').classList.contains('view-hidden')) renderUserVaultView();
+                else renderUserMonths();
+                
+                if (!state.isGuest) {
+                    document.getElementById('user-vault-btn').classList.remove('hidden');
+                } else {
+                    document.getElementById('user-vault-btn').classList.add('hidden');
+                }
+            }
+        }
+
+        window.renderUserMonths = function() {
+            document.getElementById('user-header-title').innerText = 'Select Month';
+            document.getElementById('user-header-subtitle').innerText = 'Welcome, ' + state.currentUser.username;
+            let uniqueMonths = [...new Set(state.projects.filter(p => p.id !== VAULT_ID).map(p => p.month))].sort().reverse();
+            const container = document.getElementById('user-view-months');
+            if(uniqueMonths.length === 0) return container.innerHTML = `<div class="bg-white p-8 rounded-[32px] text-center shadow-soft border border-slate-100 mt-6"><i class="ph-fill ph-calendar-blank text-5xl text-slate-200 mb-3 block"></i><p class="text-slate-500 font-medium">No active projects found.</p></div>`;
+
+            container.innerHTML = uniqueMonths.map(m => `
+                <button onclick="navToWorks('${m}')" class="w-full bg-white p-5 rounded-[24px] shadow-soft border border-slate-100 flex items-center justify-between hover:border-brand-300 hover:shadow-md active:scale-[0.98] transition-all group">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-slate-50 text-slate-500 rounded-2xl flex items-center justify-center border border-slate-100 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors shadow-sm">
+                            <i class="ph-bold ph-calendar-blank text-xl"></i>
+                        </div>
+                        <span class="font-extrabold text-lg text-slate-800 tracking-tight">${formatMonth(m)}</span>
+                    </div>
+                    <i class="ph-bold ph-caret-right text-slate-300 group-hover:text-brand-500 transition-colors"></i>
+                </button>
+            `).join('');
+        }
+
+        window.renderUserWorks = function(month) {
+            document.getElementById('user-header-title').innerText = formatMonth(month);
+            document.getElementById('user-header-subtitle').innerText = 'Select Work';
+            let works = state.projects.filter(p => p.month === month && p.id !== VAULT_ID);
+            const container = document.getElementById('works-list-container');
+            container.innerHTML = works.map(w => `
+                <button onclick="navToTracker('${w.id}')" class="w-full bg-white p-5 rounded-[24px] shadow-soft border border-slate-100 flex items-center justify-between hover:border-brand-300 hover:shadow-md active:scale-[0.98] transition-all group">
+                    <div class="text-left flex items-center gap-4">
+                        <div class="w-12 h-12 bg-slate-50 text-slate-500 rounded-[18px] flex items-center justify-center border border-slate-100 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
+                            <i class="ph-fill ph-folder-notch text-xl"></i>
+                        </div>
+                        <p class="font-bold text-base text-slate-800 tracking-tight">${w.name}</p>
+                    </div>
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center transition-colors">
+                        <i class="ph-bold ph-arrow-right text-slate-300 group-hover:text-brand-500"></i>
+                    </div>
+                </button>
+            `).join('');
+        }
+
+        window.navToTracker = function(workId) { state.activeWorkId = workId; document.getElementById('user-view-works').classList.add('view-hidden'); document.getElementById('user-view-tracker').classList.remove('view-hidden'); document.getElementById('user-view-vault').classList.add('view-hidden'); renderUserTracker(); }
+        window.navToWorks = function(monthStr) { state.activeMonth = monthStr || state.activeMonth; state.activeWorkId = null; document.getElementById('user-view-months').classList.add('view-hidden'); document.getElementById('user-view-works').classList.remove('view-hidden'); document.getElementById('user-view-tracker').classList.add('view-hidden'); document.getElementById('user-view-vault').classList.add('view-hidden'); renderUserWorks(state.activeMonth); }
+        window.navToMonths = function() { state.activeMonth = null; state.activeWorkId = null; document.getElementById('user-view-months').classList.remove('view-hidden'); document.getElementById('user-view-works').classList.add('view-hidden'); document.getElementById('user-view-tracker').classList.add('view-hidden'); document.getElementById('user-view-vault').classList.add('view-hidden'); renderUserMonths(); }
+
+        window.openAddExpenseModal = function() {
+            state.editingExpenseId = null;
+            document.getElementById('expense-form').reset();
+            document.getElementById('modal-title').innerText = 'Record Expense';
+            document.getElementById('submit-btn-text').innerText = 'Save Expense';
+            
+            if (state.isGuest) {
+                document.getElementById('guest-name-container').classList.remove('view-hidden');
+                document.getElementById('expense-guest-name').required = true;
+            } else {
+                document.getElementById('guest-name-container').classList.add('view-hidden');
+                document.getElementById('expense-guest-name').required = false;
+            }
+            document.getElementById('delete-btn').classList.add('hidden');
+            const today = new Date();
+            const localDate = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            document.getElementById('expense-date').value = localDate;
+            openExpenseModalUI();
+        }
+
+        window.editExpense = function(expId) {
+            const exp = state.expenses.find(e => e.id === expId);
+            if(!exp) return;
+            if (state.currentUser.role !== 'admin' && exp.userId !== state.currentUser.id) return showToast("You can only edit your own entries.", "error");
+            
+            state.editingExpenseId = expId;
+            document.getElementById('expense-amount').value = exp.amount;
+            document.getElementById('expense-desc').value = exp.desc;
+            const categoryInput = document.querySelector(`input[name="category"][value="${exp.category}"]`);
+            if(categoryInput) categoryInput.checked = true;
+            
+            if (exp.userId === 'guest_user') {
+                document.getElementById('guest-name-container').classList.remove('view-hidden');
+                document.getElementById('expense-guest-name').required = true;
+                document.getElementById('expense-guest-name').value = exp.guestName || '';
+            } else {
+                document.getElementById('guest-name-container').classList.add('view-hidden');
+                document.getElementById('expense-guest-name').required = false;
+            }
+
+            document.getElementById('delete-btn').classList.remove('hidden');
+            const expDate = new Date(exp.timestamp);
+            const localDate = new Date(expDate.getTime() - (expDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            document.getElementById('expense-date').value = localDate;
+            document.getElementById('modal-title').innerText = 'Edit Expense';
+            document.getElementById('submit-btn-text').innerText = 'Update Expense';
+            openExpenseModalUI();
+        }
+
+        function openExpenseModalUI() {
+            const modal = document.getElementById('expense-modal');
+            const backdrop = document.getElementById('modal-backdrop');
+            const content = document.getElementById('modal-content');
+            modal.classList.remove('hidden'); modal.classList.add('flex');
+            requestAnimationFrame(() => { backdrop.classList.remove('opacity-0'); content.classList.add('modal-enter-active'); });
+            setTimeout(() => document.getElementById('expense-amount').focus(), 400);
+        }
+
+        window.closeExpenseModal = function() {
+            const modal = document.getElementById('expense-modal');
+            const backdrop = document.getElementById('modal-backdrop');
+            const content = document.getElementById('modal-content');
+            backdrop.classList.add('opacity-0'); content.classList.remove('modal-enter-active');
+            setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); document.getElementById('expense-form').reset(); state.editingExpenseId = null; }, 400);
+        }
+
+        window.deleteCurrentExpense = function() { if(state.editingExpenseId) deleteExpense(state.editingExpenseId); }
+        window.deleteExpense = function(id) {
+            openConfirmModal("Delete Expense", "Are you sure you want to permanently delete this expense?", async () => {
+                try {
+                    const { error } = await supabase.from('exp_expenses').delete().eq('id', id);
+                    if(error) throw error;
+                    state.expenses = state.expenses.filter(e => e.id !== id);
+                    if(state.editingExpenseId === id) closeExpenseModal();
+                    updateUIBasedOnRole(); showToast("Expense deleted."); await fetchAllData();
+                } catch(e) { console.error(e); showToast("Error deleting expense.", "error"); }
+            }, "Delete");
+        }
+
+        window.handleExpenseSubmit = async function(event) {
+            event.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            const amount = document.getElementById('expense-amount').value;
+            const desc = document.getElementById('expense-desc').value;
+            const category = document.querySelector('input[name="category"]:checked').value;
+            const dateVal = document.getElementById('expense-date').value;
+            
+            let targetProjectId = state.activeWorkId;
+            let targetUserId = state.currentUser ? state.currentUser.id : null;
+            if (state.editingExpenseId) {
+                const existing = state.expenses.find(e => e.id === state.editingExpenseId);
+                if(existing) { targetProjectId = existing.projectId; targetUserId = existing.userId; }
+            }
+            if(!amount || !desc || !targetUserId || !targetProjectId || !dateVal) return;
+
+            let dateObj = state.editingExpenseId ? new Date(state.expenses.find(e => e.id === state.editingExpenseId).timestamp) : new Date();
+            const [year, month, day] = dateVal.split('-');
+            dateObj.setFullYear(year, month - 1, day);
+
+            const expenseData = { user_id: targetUserId, project_id: targetProjectId, amount: Number(amount), description: desc, category: category, created_at: dateObj.toISOString() };
+            if (targetUserId === 'guest_user') {
+                const gName = document.getElementById('expense-guest-name').value.trim();
+                if(!gName) return showToast("Please enter your name", "error");
+                expenseData.guest_name = gName;
+            }
+
+            btn.disabled = true;
+            const originalText = document.getElementById('submit-btn-text').innerText;
+            document.getElementById('submit-btn-text').innerHTML = `<i class="ph-bold ph-spinner animate-spin"></i> Saving...`;
+
+            try {
+                if (state.editingExpenseId) {
+                    const { error } = await supabase.from('exp_expenses').update(expenseData).eq('id', state.editingExpenseId);
+                    if (error) throw error; showToast("Expense updated.");
+                } else {
+                    const { error } = await supabase.from('exp_expenses').insert(expenseData);
+                    if (error) throw error; showToast("Expense saved.");
+                }
+                closeExpenseModal(); await fetchAllData();
+            } catch (error) { console.error("Save Error:", error); showToast("Error saving data.", "error"); }
+            btn.disabled = false;
+            document.getElementById('submit-btn-text').innerText = originalText;
+        }
+
+        window.switchAdminTab = function(tab) {
+            ['overview', 'expenses', 'users', 'projects'].forEach(t => {
+                document.getElementById(`admin-tab-${t}`).classList.add('view-hidden');
+                const btn = document.getElementById(`tab-btn-${t}`);
+                btn.classList.remove('bg-white', 'text-slate-900', 'shadow-sm'); btn.classList.add('text-slate-500');
+            });
+            document.getElementById(`admin-tab-${tab}`).classList.remove('view-hidden');
+            const activeBtn = document.getElementById(`tab-btn-${tab}`);
+            activeBtn.classList.remove('text-slate-500'); activeBtn.classList.add('bg-white', 'text-slate-900', 'shadow-sm');
+            if(tab === 'overview') renderAdminOverview();
+            if(tab === 'expenses') renderAdminAllProjectsList();
+            if(tab === 'projects') renderAdminProjectsManageList();
+            if(tab === 'users') renderAdminUsersList();
+        }
+
+        window.renderAdminUsersList = function() {
+            const container = document.getElementById('admin-users-list');
+            if(!container) return;
+            container.innerHTML = state.users.map(u => `
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center group">
+                    <div>
+                        <p class="font-bold text-slate-800">${u.username}</p>
+                        <p class="text-xs text-slate-500 uppercase tracking-wider">${u.role}</p>
+                    </div>
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="editAdminUser('${u.id}')" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-brand-500 hover:bg-brand-50"><i class="ph-bold ph-pencil-simple"></i></button>
+                        ${u.role !== 'admin' ? `<button onclick="deleteAdminUser('${u.id}')" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50"><i class="ph-bold ph-trash"></i></button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        };
+
+        window.editAdminUser = function(id) {
+            const user = state.users.find(u => u.id === id);
+            if (!user) return;
+            state.editingUserId = id;
+            document.getElementById('new-user-name').value = user.username;
+            document.getElementById('new-user-pwd').value = user.password;
+            document.getElementById('edit-user-id').value = id;
+            document.getElementById('save-user-btn').innerText = 'Update User';
+            document.getElementById('cancel-user-btn').classList.remove('hidden');
+            document.getElementById('save-user-btn').classList.remove('w-full');
+            document.getElementById('save-user-btn').classList.add('w-2/3');
+            document.getElementById('admin-content').scrollTo({top: 0, behavior: 'smooth'});
+        }
+
+        window.cancelEditUser = function() {
+            state.editingUserId = null;
+            document.getElementById('new-user-name').value = '';
+            document.getElementById('new-user-pwd').value = '';
+            document.getElementById('edit-user-id').value = '';
+            document.getElementById('save-user-btn').innerText = 'Save User';
+            document.getElementById('cancel-user-btn').classList.add('hidden');
+            document.getElementById('save-user-btn').classList.add('w-full');
+            document.getElementById('save-user-btn').classList.remove('w-2/3');
+        }
+
+        window.saveUser = async function() {
+            const username = document.getElementById('new-user-name').value.trim();
+            const pwd = document.getElementById('new-user-pwd').value.trim();
+            if(!username || !pwd) return showToast('Fill all fields', 'error');
+
+            try {
+                if (state.editingUserId) {
+                    const { error } = await supabase.from('exp_users').update({ username, password: pwd }).eq('id', state.editingUserId);
+                    if(error) throw error;
+                    showToast('User updated');
+                } else {
+                    const { error } = await supabase.from('exp_users').insert({ username, password: pwd, role: 'user' });
+                    if(error) throw error;
+                    showToast('User created');
+                }
+                cancelEditUser();
+                await fetchAllData();
+                renderAdminUsersList();
+            } catch(e) { console.error(e); showToast('Error saving user', 'error'); }
+        };
+
+        window.deleteAdminUser = function(id) {
+            openConfirmModal("Delete User", "Are you sure you want to delete this user? Their expenses and allocations will remain in the system under their ID.", async () => {
+                try {
+                    const { error } = await supabase.from('exp_users').delete().eq('id', id);
+                    if(error) throw error;
+                    showToast("User deleted.");
+                    if(state.editingUserId === id) cancelEditUser();
+                    await fetchAllData();
+                    renderAdminUsersList();
+                } catch(e) { console.error(e); showToast("Error deleting user.", "error"); }
+            }, "Delete");
+        }
+
+        window.renderAdminOverview = function() {
+            const container = document.getElementById('admin-balances-list');
+            let hasAnyData = false; let html = '';
+
+            let sortedProjects = state.projects.filter(p => p.id !== VAULT_ID).map(proj => {
+                const projExpenses = state.expenses.filter(e => e.projectId === proj.id);
+                return { ...proj, lastActivity: projExpenses.length > 0 ? Math.max(...projExpenses.map(e => e.timestamp)) : 0 };
+            }).sort((a, b) => a.lastActivity !== b.lastActivity ? b.lastActivity - a.lastActivity : b.month.localeCompare(a.month));
+
+            sortedProjects.forEach(proj => {
+                const projAllocations = state.allocations.filter(a => a.projectId === proj.id);
+                const projExpenses = state.expenses.filter(e => e.projectId === proj.id);
+                const participants = {};
+                
+                projAllocations.forEach(a => {
+                    const key = a.userId === 'guest_user' ? `guest_user|${capitalize(a.guestName||'Unknown')}` : a.userId;
+                    if(!participants[key]) participants[key] = { allocated: 0, spent: 0, isGuest: a.userId === 'guest_user', name: '', id: a.userId, guestName: a.guestName, isTicked: false };
+                    
+                    if (a.amount === 0 && a.settledExcess === 1) {
+                        participants[key].isTicked = true;
+                    } else {
+                        participants[key].allocated += Number(a.amount);
+                    }
+                });
+                projExpenses.forEach(e => {
+                    const key = e.userId === 'guest_user' ? `guest_user|${capitalize(e.guestName?.trim()||'Unknown')}` : e.userId;
+                    if(!participants[key]) participants[key] = { allocated: 0, spent: 0, isGuest: e.userId === 'guest_user', name: '', id: e.userId, guestName: e.guestName, isTicked: false };
+                    participants[key].spent += Number(e.amount);
+                });
+
+                const keys = Object.keys(participants);
+                if(keys.length === 0) return;
+                hasAnyData = true;
+
+                html += `<div class="mb-6"><h4 class="text-[11px] font-bold text-brand-500 mb-3 uppercase tracking-widest pl-2">${proj.name} <span class="text-slate-400 font-normal">(${formatMonth(proj.month)})</span></h4><div class="space-y-3">`;
+                keys.forEach(key => {
+                    const p = participants[key];
+                    p.name = !p.isGuest ? (state.users.find(u => u.id === p.id)?.username || 'Unknown User') : `${capitalize(p.guestName||'Unknown')} (Guest)`;
+                    
+                    const balance = p.allocated - p.spent;
+                    const isExcess = balance < 0;
+                    
+                    // Determine card styling based on state
+                    let cardClasses = 'bg-white border-slate-100 shadow-sm';
+                    let avatarClasses = 'bg-slate-100 text-slate-600';
+                    let balanceClasses = 'text-slate-800'; 
+                    let tickBtnClasses = 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-emerald-500';
+
+                    if (p.isTicked) {
+                         // Ticked state (Much more green)
+                         cardClasses = 'bg-emerald-100 border-emerald-400 shadow-[0_4px_20px_rgba(16,185,129,0.3)]';
+                         avatarClasses = 'bg-emerald-200 text-emerald-800';
+                         balanceClasses = 'text-emerald-800';
+                         tickBtnClasses = 'bg-emerald-500 text-white border-emerald-600 shadow-md hover:bg-emerald-600';
+                    } else if (isExcess) {
+                         if (p.isGuest) {
+                             // Guest with excess - Yellow
+                             cardClasses = 'bg-yellow-50 border-yellow-300 shadow-[0_4px_15px_rgba(253,224,71,0.2)]';
+                             avatarClasses = 'bg-yellow-200 text-yellow-800';
+                             balanceClasses = 'text-yellow-700';
+                             tickBtnClasses = 'bg-white text-slate-400 border-yellow-200 hover:bg-yellow-100 hover:text-emerald-500';
+                         } else {
+                             // Regular user with excess - Pink/Red
+                             cardClasses = 'bg-red-50/50 border-red-200 shadow-[0_4px_15px_rgba(239,68,68,0.1)]';
+                             avatarClasses = 'bg-red-100 text-red-600';
+                             balanceClasses = 'text-red-600';
+                             tickBtnClasses = 'bg-white text-slate-400 border-red-200 hover:bg-red-100 hover:text-emerald-500';
+                         }
+                    }
+
+                    const tickIcon = p.isTicked ? 'ph-check-circle' : 'ph-check';
+                    const tickAction = `toggleUserTicked('${proj.id}', '${p.id}', '${p.guestName || ''}', ${p.isTicked})`;
+
+                    html += `
+                        <div class="p-4 rounded-3xl border ${cardClasses} transition-all duration-300 relative">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-8 h-8 rounded-full ${avatarClasses} flex items-center justify-center font-bold text-xs border border-white/20">${p.name.substring(0,2).toUpperCase()}</div>
+                                    <p class="font-bold text-slate-800 text-sm">${p.name}</p>
+                                </div>
+                                <div class="text-right flex flex-col items-end">
+                                    <p class="text-[10px] uppercase font-bold ${p.isTicked ? 'text-emerald-600/70' : 'text-slate-400'} tracking-wider">Balance</p>
+                                    <p class="font-extrabold text-lg ${balanceClasses} mb-1">${isExcess ? '-' : ''}₹${formatMoney(Math.abs(balance))}</p>
+                                    <button onclick="${tickAction}" class="w-8 h-8 flex items-center justify-center border rounded-full transition-all ${tickBtnClasses}">
+                                        <i class="ph-bold ${tickIcon} ${p.isTicked ? 'text-white' : ''}"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="flex gap-2 text-xs font-medium mt-1">
+                                <div class="flex-1 bg-white/60 border border-slate-200/50 rounded-xl p-2 text-center text-slate-600"><span class="block text-[9px] uppercase tracking-wider text-slate-400 mb-0.5">Allocated</span>₹${formatMoney(p.allocated)}</div>
+                                <div class="flex-1 bg-white/80 border border-slate-200/80 rounded-xl p-2 text-center text-slate-800 font-bold shadow-inner"><span class="block text-[9px] uppercase tracking-wider text-slate-500 mb-0.5 font-medium">Spent</span>₹${formatMoney(p.spent)}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `</div></div>`;
+            });
+            if(!hasAnyData) container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-soft"><i class="ph-fill ph-scales text-4xl text-slate-300 mb-2 block"></i><p class="text-slate-500 font-medium text-sm">No activity found yet.</p></div>`;
+            else container.innerHTML = html;
+        }
+
+        window.toggleUserTicked = async function(projectId, userId, guestName, isCurrentlyTicked) {
+            try {
+                if (isCurrentlyTicked) {
+                    let query = supabase.from('exp_allocations').delete()
+                        .eq('project_id', projectId)
+                        .eq('amount', 0)
+                        .eq('settled_excess', 1);
+                    
+                    if (userId === 'guest_user') {
+                        query = query.eq('user_id', 'guest_user').eq('guest_name', guestName);
+                    } else {
+                        query = query.eq('user_id', userId);
+                    }
+                    const { error } = await query;
+                    if(error) throw error;
+                } else {
+                    const newAlloc = { project_id: projectId, user_id: userId, amount: 0, settled_excess: 1 };
+                    if (userId === 'guest_user' && guestName) newAlloc.guest_name = guestName;
+                    const { error } = await supabase.from('exp_allocations').insert(newAlloc);
+                    if(error) throw error;
+                }
+                await fetchAllData();
+            } catch(e) {
+                console.error(e);
+                showToast('Error updating status', 'error');
+            }
+        }
+
+        window.renderAdminProjectsManageList = function() {
+            const container = document.getElementById('admin-projects-manage-list');
+            if(!container) return;
+            
+            const validProjects = state.projects.filter(p => p.id !== VAULT_ID);
+            if(validProjects.length === 0) {
+                container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-soft"><p class="text-slate-500 font-medium text-sm">No projects created yet.</p></div>`;
+                return;
+            }
+            container.innerHTML = validProjects.map(p => `
+                <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-3 hover:shadow-md transition-all">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <p class="font-bold text-slate-800">${p.name}</p>
+                            <p class="text-xs text-slate-500">${formatMonth(p.month)}</p>
+                        </div>
+                        <div class="flex items-center gap-1">
+                            <button onclick="editProject('${p.id}')" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-brand-500 hover:bg-brand-50 transition-colors"><i class="ph-bold ph-pencil-simple"></i></button>
+                            <button onclick="deleteProjectInit('${p.id}')" class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"><i class="ph-bold ph-trash"></i></button>
+                        </div>
+                    </div>
+                    <button onclick="openProjectAllocation('${p.id}')" class="w-full py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors text-sm">Manage Allocations</button>
+                </div>
+            `).join('');
+        };
+
+        window.editProject = function(id) {
+            const proj = state.projects.find(p => p.id === id);
+            if(!proj) return;
+            state.editingProjectId = id;
+            document.getElementById('new-proj-month').value = proj.month;
+            document.getElementById('new-proj-name').value = proj.name;
+            
+            document.getElementById('project-form-title').innerHTML = `<i class="ph-fill ph-pencil-simple text-brand-500"></i> Edit Work`;
+            document.getElementById('save-proj-btn').innerText = 'Update Project';
+            document.getElementById('save-proj-btn').classList.remove('w-full');
+            document.getElementById('save-proj-btn').classList.add('flex-1');
+            document.getElementById('cancel-edit-proj-btn').classList.remove('hidden');
+            document.getElementById('admin-content').scrollTo({top: 0, behavior: 'smooth'});
+        };
+
+        window.cancelEditProject = function() {
+            state.editingProjectId = null;
+            document.getElementById('new-proj-month').value = '';
+            document.getElementById('new-proj-name').value = '';
+            
+            document.getElementById('project-form-title').innerHTML = `<i class="ph-fill ph-folder-plus text-brand-500"></i> Create Work`;
+            document.getElementById('save-proj-btn').innerText = 'Add Project';
+            document.getElementById('save-proj-btn').classList.add('w-full');
+            document.getElementById('save-proj-btn').classList.remove('flex-1');
+            document.getElementById('cancel-edit-proj-btn').classList.add('hidden');
+        };
+
+        window.deleteProjectInit = function(id) {
+            openConfirmModal("Delete Project? (1/2)", "Are you sure you want to delete this project? This is step 1 of 2.", () => {
+                setTimeout(() => {
+                    openConfirmModal("WARNING: Final Confirm (2/2)", "This will permanently delete the project and ALL associated expenses and allocations. This CANNOT be undone.", async () => {
+                        try {
+                            await supabase.from('exp_expenses').delete().eq('project_id', id);
+                            await supabase.from('exp_allocations').delete().eq('project_id', id);
+                            const { error } = await supabase.from('exp_projects').delete().eq('id', id);
+                            if(error) throw error;
+                            if (state.editingProjectId === id) cancelEditProject();
+                            showToast("Project deleted successfully");
+                            await fetchAllData();
+                        } catch(e) { console.error(e); showToast("Error deleting project", "error"); }
+                    }, "Delete");
+                }, 400); 
+            }, "Proceed");
+        };
+
+        window.openProjectAllocation = function(projectId) {
+            state.adminActiveProjectId = projectId;
+            document.getElementById('admin-projects-main-view').classList.add('view-hidden');
+            document.getElementById('admin-project-allocation-view').classList.remove('view-hidden');
+            const proj = state.projects.find(p => p.id === projectId);
+            document.getElementById('allocation-project-name').innerText = proj ? proj.name : '';
+            document.getElementById('alloc-project-id').value = projectId;
+
+            const userSelect = document.getElementById('alloc-user');
+            userSelect.innerHTML = state.users.filter(u => u.role !== 'admin').map(u => `<option value="${u.id}">${u.username}</option>`).join('');
+
+            renderAdminProjectAllocationView(projectId);
+        };
+
+        window.backToProjectsMain = function() {
+            state.adminActiveProjectId = null;
+            document.getElementById('admin-projects-main-view').classList.remove('view-hidden');
+            document.getElementById('admin-project-allocation-view').classList.add('view-hidden');
+            renderAdminProjectsManageList();
+        };
+
+        window.renderAdminProjectAllocationView = function(projectId) {
+            const container = document.getElementById('project-current-allocations');
+            const allocs = state.allocations.filter(a => a.projectId === projectId && !(a.amount === 0 && a.settledExcess === 1));
+            if(allocs.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-500 italic">No allocations yet.</p>`;
+                return;
+            }
+            container.innerHTML = allocs.map(a => {
+                const user = state.users.find(u => u.id === a.userId);
+                return `
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 flex justify-between items-center">
+                        <span class="font-bold text-sm text-slate-700">${user ? user.username : 'Unknown'}</span>
+                        <span class="font-extrabold text-brand-600">₹${formatMoney(a.amount)}</span>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        window.allocateFunds = async function() {
+            const projectId = document.getElementById('alloc-project-id').value;
+            const userId = document.getElementById('alloc-user').value;
+            const amount = Number(document.getElementById('alloc-amount').value);
+
+            if(!projectId || !userId || !amount) return showToast('Please fill all fields', 'error');
+
+            const btn = document.querySelector('#admin-project-allocation-view button');
+            btn.disabled = true;
+
+            const newAlloc = { project_id: projectId, user_id: userId, amount: amount, settled_excess: 0 };
+            try {
+                const { error } = await supabase.from('exp_allocations').insert(newAlloc);
+                if(error) throw error;
+                showToast('Funds allocated successfully');
+                document.getElementById('alloc-amount').value = '';
+                await fetchAllData();
+                renderAdminProjectAllocationView(projectId);
+            } catch(e) { console.error(e); showToast('Error allocating funds', 'error'); }
+            btn.disabled = false;
+        };
+
+        window.saveProject = async function() {
+            const month = document.getElementById('new-proj-month').value;
+            const name = document.getElementById('new-proj-name').value;
+            if(!month || !name) return showToast('Fill all fields', 'error');
+
+            try {
+                if (state.editingProjectId) {
+                    const { error } = await supabase.from('exp_projects').update({ month, name }).eq('id', state.editingProjectId);
+                    if(error) throw error; showToast('Project updated');
+                } else {
+                    const { error } = await supabase.from('exp_projects').insert({ month, name });
+                    if(error) throw error; showToast('Project created');
+                }
+                cancelEditProject(); 
+                await fetchAllData();
+                renderAdminProjectsManageList();
+            } catch(e) { console.error(e); showToast('Error saving project', 'error'); }
+        };
+
+        window.renderAdminAllProjectsList = function() {
+            const container = document.getElementById('admin-all-projects-list');
+            const validProjects = state.projects.filter(p => p.id !== VAULT_ID);
+            
+            if(validProjects.length === 0) return container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-soft"><i class="ph-fill ph-folder-open text-4xl text-slate-300 mb-2 block"></i><p class="text-slate-500 font-medium text-sm">No projects to display.</p></div>`;
+            const grouped = {};
+            validProjects.forEach(p => { if(!grouped[p.month]) grouped[p.month] = []; grouped[p.month].push(p); });
+            let html = '';
+            for(const [month, projs] of Object.entries(grouped)) {
+                html += `<div class="mb-4"><h4 class="text-[11px] font-bold text-brand-500 mb-2 uppercase tracking-widest pl-2">${formatMonth(month)}</h4><div class="space-y-2">`;
+                html += projs.map(p => {
+                    const projExpenses = state.expenses.filter(e => e.projectId === p.id);
+                    const totalAmt = projExpenses.reduce((s, e) => s + Number(e.amount), 0);
+                    return `
+                    <button onclick="openAdminProjectExpenses('${p.id}')" class="w-full bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between hover:border-brand-300 hover:shadow-md transition-all active:scale-[0.98] group">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 group-hover:bg-brand-50 group-hover:text-brand-600 transition-colors">
+                                <i class="ph-fill ph-receipt text-brand-400 text-lg"></i>
+                            </div>
+                            <div class="text-left">
+                                <p class="font-bold text-slate-800">${p.name}</p>
+                                <p class="text-[10px] text-slate-500 font-medium">${projExpenses.length} entries</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="font-extrabold text-slate-900 text-sm bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-xl">₹${formatMoney(totalAmt)}</span>
+                            <i class="ph-bold ph-caret-right text-slate-300 group-hover:text-brand-500 transition-colors"></i>
+                        </div>
+                    </button>
+                    `;
+                }).join('');
+                html += `</div></div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        window.openAdminProjectExpenses = function(projectId) {
+            state.adminActiveProjectId = projectId;
+            document.getElementById('admin-expenses-view-selector').classList.add('view-hidden');
+            document.getElementById('admin-expenses-detail-view').classList.remove('view-hidden');
+            const project = state.projects.find(p => p.id === projectId);
+            if(project) document.getElementById('expense-detail-project-name').innerText = `${project.name} (${formatMonth(project.month)})`;
+            
+            const filterSelect = document.getElementById('admin-expense-filter-person');
+            const projExpenses = state.expenses.filter(e => e.projectId === projectId);
+            const persons = new Set();
+            projExpenses.forEach(e => {
+                if(e.userId === 'guest_user') persons.add(`guest|${capitalize(e.guestName||'Unknown')}`);
+                else persons.add(`user|${e.userId}`);
+            });
+            filterSelect.innerHTML = `<option value="all">Filter: All Persons</option>`;
+            persons.forEach(p => {
+                const [type, val] = p.split('|');
+                let displayName = type === 'user' ? (state.users.find(u => u.id === val)?.username || 'Unknown User') : `${val} (Guest)`;
+                filterSelect.innerHTML += `<option value="${p}">${displayName}</option>`;
+            });
+            filterSelect.value = 'all'; document.getElementById('admin-expense-sort').value = 'recent';
+            renderAdminProjectExpensesDetail();
+        }
+
+        window.backToAllProjectsExpenses = function() {
+            state.adminActiveProjectId = null;
+            document.getElementById('admin-expenses-detail-view').classList.add('view-hidden');
+            document.getElementById('admin-expenses-view-selector').classList.remove('view-hidden');
+            renderAdminAllProjectsList();
+        }
+
+        window.renderAdminProjectExpensesDetail = function() {
+            const projId = state.adminActiveProjectId;
+            if(!projId) return;
+            const filterVal = document.getElementById('admin-expense-filter-person').value;
+            const sortVal = document.getElementById('admin-expense-sort').value;
+            const container = document.getElementById('admin-project-expenses-list');
+            const totalAmtEl = document.getElementById('admin-project-total-amount');
+
+            let projExpenses = state.expenses.filter(e => e.projectId === projId);
+            if(filterVal !== 'all') {
+                const [type, val] = filterVal.split('|');
+                if(type === 'user') projExpenses = projExpenses.filter(e => e.userId === val);
+                if(type === 'guest') projExpenses = projExpenses.filter(e => e.userId === 'guest_user' && capitalize(e.guestName||'Unknown') === val);
+            }
+            
+            totalAmtEl.innerText = formatMoney(projExpenses.reduce((s,e)=>s+Number(e.amount),0));
+            document.getElementById('admin-category-summary').innerHTML = generateCategorySummaryHTML(projExpenses);
+
+            if(projExpenses.length === 0) return container.innerHTML = `<div class="bg-white rounded-[24px] border border-slate-100 p-8 text-center shadow-soft"><i class="ph-fill ph-receipt text-4xl text-slate-300 mb-2 block"></i><p class="text-slate-500 font-medium text-sm">No expenses match criteria.</p></div>`;
+
+            const uniqueUsersMap = {};
+            let colorIndex = 0;
+            projExpenses.forEach(e => {
+                const key = e.userId === 'guest_user' ? `Guest: ${capitalize(e.guestName?.trim()||'Unknown')}` : e.userId;
+                if(!uniqueUsersMap[key]) {
+                    uniqueUsersMap[key] = { name: key.startsWith('Guest:') ? key : (state.users.find(u => u.id === key)?.username || 'Unknown User'), colorClass: getUserColorClass(colorIndex++) };
+                }
+            });
+
+            let html = '';
+            if (sortVal === 'user') {
+                const grouped = {};
+                projExpenses.forEach(e => {
+                    const key = e.userId === 'guest_user' ? `Guest: ${capitalize(e.guestName?.trim()||'Unknown')}` : e.userId;
+                    if(!grouped[key]) grouped[key] = []; grouped[key].push(e);
+                });
+                for(const [key, exps] of Object.entries(grouped)) {
+                    const userMeta = uniqueUsersMap[key];
+                    exps.sort((a,b) => b.timestamp - a.timestamp);
+                    html += `
+                    <div class="bg-white p-4 rounded-3xl shadow-soft border border-slate-100 mb-4">
+                        <div class="flex justify-between items-center mb-3 pb-3 border-b border-slate-50">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-full ${userMeta.colorClass} flex items-center justify-center font-bold text-xs border">${userMeta.name.substring(key.startsWith('Guest:') ? 7 : 0, key.startsWith('Guest:') ? 9 : 2).toUpperCase()}</div>
+                                <h4 class="font-bold text-slate-800 text-sm">${userMeta.name}</h4>
+                            </div>
+                            <span class="font-extrabold text-brand-700 bg-brand-50 px-2.5 py-1 rounded-lg text-sm border border-brand-100">₹${formatMoney(exps.reduce((s,e)=>s+Number(e.amount),0))}</span>
+                        </div>
+                        <div class="space-y-2">
+                            ${exps.map(e => {
+                                const config = categoryConfig[e.category] || categoryConfig['other'];
+                                return `
+                                <div class="flex justify-between items-center bg-slate-50/50 p-2.5 pl-3 rounded-2xl border border-slate-100">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-xl flex items-center justify-center ${config.color} ${config.bg} ${config.border} border shadow-sm"><i class="ph-fill ${config.icon} text-lg"></i></div>
+                                        <div><p class="text-sm font-bold text-slate-800 line-clamp-1">${e.desc}</p><p class="text-[10px] font-medium text-slate-500 mt-0.5">${new Date(e.timestamp).toLocaleDateString()}</p></div>
+                                    </div>
+                                    <span class="font-bold text-slate-700 text-sm">₹${formatMoney(e.amount)}</span>
+                                </div>
+                            `}).join('')}
+                        </div>
+                    </div>`;
+                }
+            } else {
+                if (sortVal === 'recent') projExpenses.sort((a, b) => b.timestamp - a.timestamp);
+                else if (sortVal === 'oldest') projExpenses.sort((a, b) => a.timestamp - b.timestamp);
+                else if (sortVal === 'amount_high') projExpenses.sort((a, b) => b.amount - a.amount);
+                else if (sortVal === 'amount_low') projExpenses.sort((a, b) => a.amount - b.amount);
+
+                html += `<div class="space-y-2">`;
+                html += projExpenses.map(e => {
+                    const config = categoryConfig[e.category] || categoryConfig['other'];
+                    const key = e.userId === 'guest_user' ? `Guest: ${capitalize(e.guestName?.trim()||'Unknown')}` : e.userId;
+                    const userMeta = uniqueUsersMap[key];
+                    return `
+                    <div class="flex justify-between items-center bg-white p-3 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden pl-4 group">
+                        <div class="absolute left-0 top-0 bottom-0 w-1 ${userMeta.colorClass.split(' ')[0]}"></div>
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center ${config.color} ${config.bg} ${config.border} border shadow-sm"><i class="ph-fill ${config.icon} text-lg"></i></div>
+                            <div>
+                                <p class="text-sm font-bold text-slate-800 line-clamp-1">${e.desc}</p>
+                                <div class="flex items-center gap-1.5 mt-0.5">
+                                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${userMeta.colorClass} border">${userMeta.name}</span>
+                                    <span class="text-[10px] font-medium text-slate-500">${new Date(e.timestamp).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-extrabold text-slate-900 text-[15px]">₹${formatMoney(e.amount)}</span>
+                            <div class="hidden group-hover:flex items-center gap-1 border-l border-slate-100 pl-2">
+                                <button onclick="editExpense('${e.id}')" class="p-1 text-slate-400 hover:text-brand-500"><i class="ph-bold ph-pencil-simple text-sm"></i></button>
+                                <button onclick="deleteExpense('${e.id}')" class="p-1 text-slate-400 hover:text-red-500"><i class="ph-bold ph-trash text-sm"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+                html += `</div>`;
+            }
+            container.innerHTML = html;
+        }
+
+        window.exportUserProjectPDF = function() {
+            if(!window.jspdf) return showToast("PDF library loading, please wait...", "warning");
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const project = state.projects.find(p => p.id === state.activeWorkId);
+            if(!project) return;
+            
+            const myExpenses = state.expenses.filter(e => e.userId === state.currentUser.id && e.projectId === state.activeWorkId);
+            const totalSpent = myExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+            const myProjAllocations = state.allocations.filter(a => a.userId === state.currentUser.id && a.projectId === state.activeWorkId);
+            const totalIncoming = myProjAllocations.reduce((sum, a) => sum + Number(a.amount), 0);
+            const balance = totalIncoming - totalSpent;
+            
+            doc.setFillColor(248, 250, 252); doc.rect(0, 0, 210, 50, 'F');
+            doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(30, 41, 59);
+            doc.text(`Expense Report`, 14, 22);
+            doc.setFontSize(14); doc.setTextColor(15, 118, 110);
+            doc.text(`${project.name}`, 14, 30);
+            doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(100, 116, 139);
+            doc.text(`User: ${state.currentUser.username}`, 14, 38);
+            doc.text(`Date Generated: ${new Date().toLocaleDateString()}`, 14, 44);
+            
+            doc.setFillColor(241, 245, 249); doc.roundedRect(14, 50, 182, 22, 3, 3, 'F');
+            doc.setTextColor(51, 65, 85); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+            doc.text("Total Incoming", 20, 58);
+            doc.text("Total Outgoing", 80, 58);
+            doc.text("Balance", 140, 58);
+
+            doc.setFontSize(14);
+            doc.setTextColor(16, 185, 129); doc.text(`INR ${formatMoney(totalIncoming)}`, 20, 66);
+            doc.setTextColor(239, 68, 68); doc.text(`INR ${formatMoney(totalSpent)}`, 80, 66);
+            doc.setTextColor(balance < 0 ? 239 : 15, balance < 0 ? 68 : 118, balance < 0 ? 68 : 110);
+            doc.text(`INR ${formatMoney(balance)}`, 140, 66);
+
+            let startYForDetails = 80;
+
+            const validAllocs = myProjAllocations.filter(a => !(a.amount === 0 && a.settledExcess === 1));
+
+            const fundData = validAllocs.sort((a,b) => a.timestamp - b.timestamp).map(a => [
+                new Date(a.timestamp).toLocaleDateString(),
+                a.amount > 0 ? 'Added' : 'Subtracted',
+                a.guestName || (a.amount > 0 ? 'Fund Added' : 'Fund Subtracted'),
+                `INR ${formatMoney(Math.abs(a.amount))}`
+            ]);
+
+            if(fundData.length > 0) {
+                doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Fund History", 14, startYForDetails);
+                doc.autoTable({
+                    startY: startYForDetails + 5, head: [['Date', 'Type', 'Description', 'Amount']], body: fundData,
+                    theme: 'grid', headStyles: { fillColor: [71, 85, 105], textColor: 255 }, styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                    columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } }
+                });
+                startYForDetails = doc.lastAutoTable.finalY + 15;
+            }
+
+            const summaryMap = {};
+            myExpenses.forEach(e => {
+                if(!summaryMap[e.category]) summaryMap[e.category] = 0;
+                summaryMap[e.category] += Number(e.amount);
+            });
+            const summaryData = Object.keys(summaryMap).sort((a,b) => summaryMap[b]-summaryMap[a]).map(cat => [cat.toUpperCase(), `INR ${formatMoney(summaryMap[cat])}`]);
+
+            if(summaryData.length > 0) {
+                doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Expense Summary by Category", 14, startYForDetails);
+                doc.autoTable({
+                    startY: startYForDetails + 5, head: [['Category', 'Total Spent']], body: summaryData,
+                    theme: 'grid', headStyles: { fillColor: [71, 85, 105], textColor: 255, fontStyle: 'bold' },
+                    styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                    columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+                    didParseCell: function(data) {
+                        if (data.section === 'body') {
+                            const catName = summaryData[data.row.index][0].toLowerCase();
+                            if (categoryPdfColors[catName]) data.cell.styles.fillColor = categoryPdfColors[catName];
+                        }
+                    }
+                });
+                startYForDetails = doc.lastAutoTable.finalY + 15;
+            }
+
+            const tableData = myExpenses.map(e => [
+                new Date(e.timestamp).toLocaleDateString(), e.category.toUpperCase(), e.desc, `INR ${formatMoney(e.amount)}`
+            ]);
+
+            doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Detailed Expense Log", 14, startYForDetails);
+            doc.autoTable({
+                startY: startYForDetails + 5, head: [['Date', 'Category', 'Description', 'Amount']], body: tableData,
+                theme: 'grid', headStyles: { fillColor: [15, 118, 110], textColor: 255, fontStyle: 'bold' },
+                styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } },
+                didParseCell: function(data) {
+                    if (data.section === 'body') {
+                        const rowData = myExpenses[data.row.index];
+                        if (rowData && categoryPdfColors[rowData.category]) data.cell.styles.fillColor = categoryPdfColors[rowData.category];
+                    }
+                }
+            });
+            doc.save(`Expense_Report_${project.name.replace(/\s+/g, '_')}.pdf`);
+            showToast("PDF Downloaded!");
+        }
+
+        window.exportVaultPDF = function() {
+            if(!window.jspdf) return showToast("PDF library loading, please wait...", "warning");
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const myVaultAllocs = state.allocations.filter(a => a.userId === state.currentUser.id && a.projectId === VAULT_ID);
+            const globalBalance = myVaultAllocs.reduce((sum, a) => sum + Number(a.amount), 0);
+            
+            doc.setFillColor(248, 250, 252); doc.rect(0, 0, 210, 50, 'F');
+            doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(30, 41, 59);
+            doc.text(`Vault History Report`, 14, 22);
+            doc.setFontSize(14); doc.setTextColor(15, 118, 110);
+            doc.text(`User: ${state.currentUser.username}`, 14, 30);
+            doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(100, 116, 139);
+            doc.text(`Date Generated: ${new Date().toLocaleDateString()}`, 14, 38);
+            
+            doc.setFillColor(15, 23, 42); doc.roundedRect(120, 15, 75, 25, 3, 3, 'F');
+            doc.setTextColor(255, 255, 255); doc.setFontSize(10); doc.text(`Total Vault Balance`, 125, 23);
+            doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.setTextColor(45, 212, 191); 
+            doc.text(`INR ${formatMoney(globalBalance)}`, 125, 33);
+
+            const sortedAllocs = [...myVaultAllocs].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+            const tableData = sortedAllocs.map(alloc => {
+                const type = alloc.amount > 0 ? 'Credit' : 'Debit';
+                const dateStr = alloc.timestamp ? new Date(alloc.timestamp).toLocaleDateString() : '';
+                return [
+                    dateStr, type, alloc.guestName || (alloc.amount > 0 ? 'Added Funds' : 'Subtracted Funds'),
+                    `INR ${formatMoney(Math.abs(alloc.amount))}`
+                ];
+            });
+
+            doc.autoTable({
+                startY: 55, head: [['Date', 'Type', 'Reason', 'Amount']], body: tableData,
+                theme: 'grid', headStyles: { fillColor: [15, 118, 110], textColor: 255, fontStyle: 'bold' },
+                styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                columnStyles: { 3: { halign: 'right', fontStyle: 'bold' } },
+                didParseCell: function(data) {
+                    if (data.section === 'body' && data.column.index === 1) {
+                        if (data.cell.raw === 'Credit') data.cell.styles.textColor = [16, 185, 129];
+                        else data.cell.styles.textColor = [239, 68, 68];
+                    }
+                }
+            });
+            doc.save(`Vault_Report_${state.currentUser.username}.pdf`);
+            showToast("Report Downloaded!");
+        }
+
+        window.exportAdminProjectPDF = function() {
+            if(!window.jspdf) return showToast("PDF library loading, please wait...", "warning");
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const projId = state.adminActiveProjectId;
+            const project = state.projects.find(p => p.id === projId);
+            if(!project) return;
+            
+            let projExpenses = state.expenses.filter(e => e.projectId === projId);
+            let projAllocs = state.allocations.filter(a => a.projectId === projId);
+            const filterVal = document.getElementById('admin-expense-filter-person').value;
+            
+            if(filterVal !== 'all') {
+                const [type, val] = filterVal.split('|');
+                if(type === 'user') {
+                    projExpenses = projExpenses.filter(e => e.userId === val);
+                    projAllocs = projAllocs.filter(a => a.userId === val);
+                }
+                if(type === 'guest') {
+                    projExpenses = projExpenses.filter(e => e.userId === 'guest_user' && capitalize(e.guestName||'Unknown') === val);
+                    projAllocs = projAllocs.filter(a => a.userId === 'guest_user' && capitalize(a.guestName||'Unknown') === val);
+                }
+            }
+            
+            doc.setFillColor(248, 250, 252); doc.rect(0, 0, 210, 50, 'F');
+            doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(30, 41, 59); doc.text(`Production Report`, 14, 22);
+            doc.setFontSize(14); doc.setTextColor(15, 118, 110); doc.text(`${project.name}`, 14, 30);
+            
+            doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(100, 116, 139);
+            const filterText = document.getElementById('admin-expense-filter-person').options[document.getElementById('admin-expense-filter-person').selectedIndex].text;
+            doc.text(`Filter: ${filterText}`, 14, 38);
+            doc.text(`Date Generated: ${new Date().toLocaleDateString()}`, 14, 44);
+            
+            const validProjAllocs = projAllocs.filter(a => !(a.amount === 0 && a.settledExcess === 1));
+            const totalSpent = projExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+            const totalIncoming = validProjAllocs.reduce((sum, a) => sum + Number(a.amount), 0);
+            const balance = totalIncoming - totalSpent;
+            
+            doc.setFillColor(241, 245, 249); doc.roundedRect(14, 50, 182, 22, 3, 3, 'F');
+            doc.setTextColor(51, 65, 85); doc.setFontSize(10); doc.setFont("helvetica", "bold");
+            doc.text("Total Incoming", 20, 58);
+            doc.text("Total Outgoing", 80, 58);
+            doc.text("Balance", 140, 58);
+
+            doc.setFontSize(14);
+            doc.setTextColor(16, 185, 129); doc.text(`INR ${formatMoney(totalIncoming)}`, 20, 66);
+            doc.setTextColor(239, 68, 68); doc.text(`INR ${formatMoney(totalSpent)}`, 80, 66);
+            doc.setTextColor(balance < 0 ? 239 : 15, balance < 0 ? 68 : 118, balance < 0 ? 68 : 110);
+            doc.text(`INR ${formatMoney(balance)}`, 140, 66);
+            
+            let currentY = 80;
+
+            const fundData = validProjAllocs.sort((a,b) => a.timestamp - b.timestamp).map(a => {
+                const isAdd = a.amount > 0;
+                const amt = Math.abs(a.amount);
+                const personName = a.userId === 'guest_user' ? `Guest: ${capitalize(a.guestName||'Unknown')}` : (state.users.find(u => u.id === a.userId)?.username || 'Unknown');
+                return [
+                    new Date(a.timestamp).toLocaleDateString(),
+                    personName,
+                    isAdd ? 'Added' : 'Subtracted',
+                    a.guestName || (isAdd ? 'Fund Added' : 'Fund Subtracted'),
+                    `INR ${formatMoney(amt)}`
+                ];
+            });
+
+            if(fundData.length > 0) {
+                doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Fund History", 14, currentY); currentY += 5;
+                doc.autoTable({
+                    startY: currentY, head: [['Date', 'Person', 'Type', 'Description', 'Amount']], body: fundData, theme: 'grid',
+                    headStyles: { fillColor: [71, 85, 105], textColor: 255 }, styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                    columnStyles: { 4: { halign: 'right', fontStyle: 'bold' } }
+                });
+                currentY = doc.lastAutoTable.finalY + 15;
+            }
+
+            const summaryMap = {};
+            projExpenses.forEach(e => {
+                if(!summaryMap[e.category]) summaryMap[e.category] = 0;
+                summaryMap[e.category] += Number(e.amount);
+            });
+            const summaryData = Object.keys(summaryMap).sort((a,b) => summaryMap[b]-summaryMap[a]).map(cat => [cat.toUpperCase(), `INR ${formatMoney(summaryMap[cat])}`]);
+
+            if(summaryData.length > 0) {
+                doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Expense Summary by Category", 14, currentY); currentY += 5;
+                doc.autoTable({
+                    startY: currentY, head: [['Category', 'Total Spent']], body: summaryData, theme: 'grid',
+                    headStyles: { fillColor: [71, 85, 105], textColor: 255 }, styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                    columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+                    didParseCell: function(data) {
+                        if (data.section === 'body') {
+                            const catName = summaryData[data.row.index][0].toLowerCase();
+                            if (categoryPdfColors[catName]) data.cell.styles.fillColor = categoryPdfColors[catName];
+                        }
+                    }
+                });
+                currentY = doc.lastAutoTable.finalY + 15;
+            }
+            
+            const userSummary = {};
+            projExpenses.forEach(e => {
+                const gName = e.guestName ? capitalize(e.guestName.trim()) : 'Unknown';
+                const userName = e.userId === 'guest_user' ? `Guest: ${gName}` : (state.users.find(u => u.id === e.userId)?.username || 'Unknown User');
+                if(!userSummary[userName]) userSummary[userName] = 0;
+                userSummary[userName] += Number(e.amount);
+            });
+            
+            const summaryTableData = Object.entries(userSummary).sort((a, b) => b[1] - a[1]).map(entry => [entry[0], `INR ${formatMoney(entry[1])}`]);
+            if(summaryTableData.length > 0) {
+                doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Expense Summary by Person", 14, currentY); currentY += 5;
+                doc.autoTable({
+                    startY: currentY, head: [['Person', 'Total Spent']], body: summaryTableData, theme: 'grid',
+                    headStyles: { fillColor: [71, 85, 105], textColor: 255 }, styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                    columnStyles: { 1: { halign: 'right', fontStyle: 'bold' } },
+                });
+                currentY = doc.lastAutoTable.finalY + 15;
+            }
+
+            const tableData = projExpenses.map(e => {
+                const gName = e.guestName ? capitalize(e.guestName.trim()) : 'Unknown';
+                const userName = e.userId === 'guest_user' ? `Guest: ${gName}` : (state.users.find(u => u.id === e.userId)?.username || 'Unknown User');
+                return [ new Date(e.timestamp).toLocaleDateString(), userName, e.category.toUpperCase(), e.desc, `INR ${formatMoney(e.amount)}` ];
+            });
+
+            doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(30, 41, 59); doc.text("Detailed Expense Log", 14, currentY); currentY += 5;
+            doc.autoTable({
+                startY: currentY, head: [['Date', 'Person', 'Category', 'Description', 'Amount']], body: tableData, theme: 'grid',
+                headStyles: { fillColor: [15, 118, 110], textColor: 255 }, styles: { cellPadding: 3, fontSize: 9, textColor: [51, 65, 85] },
+                columnStyles: { 4: { halign: 'right', fontStyle: 'bold' } },
+                didParseCell: function(data) {
+                    if (data.section === 'body') {
+                        const rowData = projExpenses[data.row.index];
+                        if (rowData && categoryPdfColors[rowData.category]) data.cell.styles.fillColor = categoryPdfColors[rowData.category];
+                    }
+                }
+            });
+            doc.save(`Production_Report_${project.name.replace(/\s+/g, '_')}.pdf`);
+            showToast("Report Downloaded!");
+        }
+
+        window.showToast = function(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            let icon = 'ph-check-circle text-brand-400';
+            let bgClass = 'bg-slate-900 border-slate-800 text-white';
+            if (type === 'error') { icon = 'ph-warning-circle text-red-400'; bgClass = 'bg-red-950 border-red-900 text-red-50'; }
+            else if (type === 'warning' || type === 'info') { icon = 'ph-info text-amber-400'; bgClass = 'bg-amber-950 border-amber-900 text-amber-50'; }
+            
+            const toastHTML = `<div class="${bgClass} px-4 py-3 rounded-2xl shadow-xl font-medium text-[13px] flex items-center gap-3 transition-all duration-400 transform -translate-y-8 opacity-0 pointer-events-auto border max-w-sm w-full backdrop-blur-md"><i class="ph-fill ${icon} text-lg shrink-0"></i>${message}</div>`;
+            container.insertAdjacentHTML('beforeend', toastHTML);
+            const toast = container.lastElementChild;
+            requestAnimationFrame(() => toast.classList.remove('-translate-y-8', 'opacity-0'));
+            setTimeout(() => { toast.classList.add('opacity-0', 'scale-95'); setTimeout(() => toast.remove(), 400); }, 3500);
+        }
+
+        window.refreshData = async function(btn) {
+            if (btn) btn.querySelector('i').classList.add('animate-spin');
+            await fetchAllData();
+            showToast("Data refreshed!");
+            if (btn) setTimeout(() => btn.querySelector('i').classList.remove('animate-spin'), 500);
+        }
+
+        // Initialize App
+        fetchAllData();
+    </script>
+</body>
+</html>
